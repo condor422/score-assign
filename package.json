@@ -1,0 +1,30 @@
+{
+  "name": "score-assign",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Multi-tenant flute choir part assignment platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspace @score-assign/shared && npm run build --workspace @score-assign/api && npm run build --workspace @score-assign/web",
+    "dev": "npm run dev --workspace @score-assign/api & npm run dev --workspace @score-assign/web",
+    "dev:api": "npm run dev --workspace @score-assign/api",
+    "dev:web": "npm run dev --workspace @score-assign/web",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "seed": "npm run seed --workspace @score-assign/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "20.19.9",
+    "eslint": "9.39.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.66.0"
+  }
+}

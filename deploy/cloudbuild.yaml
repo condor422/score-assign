@@ -1,0 +1,79 @@
+# Builds and deploys both services to Cloud Run.
+#
+#   gcloud builds submit --config deploy/cloudbuild.yaml \
+#     --substitutions=_REGION=us-west1,_API_ORIGIN=https://api.scoreassign.com
+#
+# Secrets (MONGODB_URI, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET) live in Secret
+# Manager and are referenced by name, never baked into the image.
+substitutions:
+  _REGION: us-west1
+  _REPO: score-assign
+  _API_SERVICE: score-assign-api
+  _WEB_SERVICE: score-assign-web
+  _API_ORIGIN: https://api.scoreassign.com
+  _ROOT_DOMAIN: scoreassign.com
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/web:${SHORT_SHA}
+
+steps:
+  - id: test
+    name: node:20-slim
+    entrypoint: bash
+    args:
+      - -c
+      - npm ci && npm run lint && npm run typecheck && npm test
+
+  - id: build-api
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/api/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+      - .
+
+  - id: build-web
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/web/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/web:${SHORT_SHA}
+      - .
+
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_API_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --min-instances=1
+      - --set-env-vars=NODE_ENV=production,APP_ROOT_DOMAIN=${_ROOT_DOMAIN},WEB_ORIGIN=https://${_ROOT_DOMAIN},BILLING_PROVIDER=stub
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_ACCESS_SECRET=jwt-access-secret:latest,JWT_REFRESH_SECRET=jwt-refresh-secret:latest
+
+  - id: deploy-web
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_WEB_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/web:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --set-env-vars=API_ORIGIN=${_API_ORIGIN}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+timeout: 1800s
