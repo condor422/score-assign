@@ -6,6 +6,7 @@ import {
   planCatalog,
   reservedSlugs,
   seedDiscountCodes,
+  type PlanKey,
 } from '@score-assign/shared';
 import { config } from '../config.js';
 import { getBaseConnection } from '../db/connection.js';
@@ -14,22 +15,28 @@ import { platformModels, type TenantDoc } from '../models/platform.js';
 import type { TenantModels } from '../models/tenant.js';
 import { conflict } from '../middleware/errors.js';
 
+function planPriceCents(key: PlanKey, fallback: number): number {
+  if (key === 'annual') return config.ANNUAL_PRICE_CENTS;
+  if (key === 'monthly') return config.MONTHLY_PRICE_CENTS;
+  return fallback;
+}
+
 /** Idempotently loads the plan and launch discount catalogue. */
 export async function ensurePlatformCatalog(): Promise<void> {
   const { Plan, DiscountCode } = platformModels(getBaseConnection());
   for (const plan of planCatalog) {
+    // Prices follow configuration on every boot, so changing the env var is
+    // enough to reprice without editing documents by hand.
     await Plan.updateOne(
       { key: plan.key },
       {
-        $setOnInsert: {
-          key: plan.key,
+        $set: {
           name: plan.name,
-          priceCents: plan.key === 'annual' ? config.ANNUAL_PRICE_CENTS : plan.priceCents,
-          currency: 'usd',
-          interval: 'year',
+          priceCents: planPriceCents(plan.key, plan.priceCents),
+          interval: plan.interval,
           limits: plan.limits,
-          active: true,
         },
+        $setOnInsert: { key: plan.key, currency: 'usd', active: true },
       },
       { upsert: true },
     );

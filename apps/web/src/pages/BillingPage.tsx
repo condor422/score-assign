@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '../lib/api';
 import { useSession } from '../auth/SessionContext';
-import type { PlansResponse, Quote } from '../lib/types';
+import type { PaidPlanKey, PlansResponse, Quote } from '../lib/types';
 
 const money = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+const per: Record<PaidPlanKey, string> = { monthly: '/ month', annual: '/ year' };
 
 export function BillingPage(): JSX.Element {
   const queryClient = useQueryClient();
   const { refresh } = useSession();
+  const [planKey, setPlanKey] = useState<PaidPlanKey>('annual');
   const [code, setCode] = useState('');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,11 @@ export function BillingPage(): JSX.Element {
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => api<PlansResponse>('/billing/plans') });
 
   const preview = useMutation({
-    mutationFn: () => api<Quote>('/billing/quote', { method: 'POST', body: { discountCode: code } }),
+    mutationFn: () =>
+      api<Quote>('/billing/quote', {
+        method: 'POST',
+        body: { planKey, ...(code ? { discountCode: code } : {}) },
+      }),
     onSuccess: (result) => {
       setQuote(result);
       setError(null);
@@ -32,13 +38,15 @@ export function BillingPage(): JSX.Element {
     mutationFn: () =>
       api<{ checkoutUrl: string; quote: Quote; activated: boolean }>('/billing/checkout', {
         method: 'POST',
-        body: { planKey: 'annual', ...(code ? { discountCode: code } : {}) },
+        body: { planKey, ...(code ? { discountCode: code } : {}) },
       }),
     onSuccess: async (result) => {
       setError(null);
       setMessage(
         result.activated
-          ? `Annual plan activated at ${money(result.quote.totalCents)}. Billing is stubbed, so no card was charged.`
+          ? `${planKey === 'monthly' ? 'Monthly' : 'Annual'} plan activated at ${money(
+              result.quote.totalCents,
+            )}. Billing is stubbed, so no card was charged.`
           : 'Continue in the checkout window to finish.',
       );
       void queryClient.invalidateQueries({ queryKey: ['plans'] });
@@ -50,8 +58,19 @@ export function BillingPage(): JSX.Element {
   });
 
   const current = plans.data?.current;
-  const annual = plans.data?.plans.find((p) => p.key === 'annual');
   const free = plans.data?.plans.find((p) => p.key === 'free');
+  const monthly = plans.data?.plans.find((p) => p.key === 'monthly');
+  const annual = plans.data?.plans.find((p) => p.key === 'annual');
+  const selected = planKey === 'monthly' ? monthly : annual;
+  const selectedPrice = selected?.priceCents ?? (planKey === 'monthly' ? 1200 : 9600);
+  const annualSavingsCents =
+    monthly && annual ? monthly.priceCents * 12 - annual.priceCents : 4800;
+
+  const choosePlan = (next: PaidPlanKey): void => {
+    setPlanKey(next);
+    // A quote is priced for one interval, so it stops being meaningful here.
+    setQuote(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -91,11 +110,44 @@ export function BillingPage(): JSX.Element {
         </div>
 
         <div className="card space-y-3">
-          <h2 className="text-sm font-semibold">Annual</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Paid</h2>
+            <div className="flex rounded-md border border-slate-200 p-0.5 text-xs">
+              <button
+                type="button"
+                className={
+                  planKey === 'monthly'
+                    ? 'rounded bg-ink px-2 py-1 text-white'
+                    : 'rounded px-2 py-1 text-slate-600'
+                }
+                onClick={() => choosePlan('monthly')}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                className={
+                  planKey === 'annual'
+                    ? 'rounded bg-ink px-2 py-1 text-white'
+                    : 'rounded px-2 py-1 text-slate-600'
+                }
+                onClick={() => choosePlan('annual')}
+              >
+                Annual
+              </button>
+            </div>
+          </div>
+
           <p className="text-2xl font-semibold">
-            {annual ? money(annual.priceCents) : '$96.00'}
-            <span className="text-sm font-normal text-slate-500"> / year</span>
+            {money(selectedPrice)}
+            <span className="text-sm font-normal text-slate-500"> {per[planKey]}</span>
           </p>
+          <p className="hint">
+            {planKey === 'monthly'
+              ? `Annual billing saves ${money(annualSavingsCents)} a year.`
+              : `Billed once a year — ${money(annualSavingsCents)} less than paying monthly.`}
+          </p>
+
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
             <li>Unlimited parts, musicians and songs</li>
             <li>Musician logins, confirmations and part emails</li>
@@ -112,7 +164,10 @@ export function BillingPage(): JSX.Element {
                 className="input"
                 placeholder="STUDENT30"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  setCode(e.target.value.toUpperCase());
+                  setQuote(null);
+                }}
               />
               <button
                 className="btn-secondary whitespace-nowrap"
@@ -123,13 +178,15 @@ export function BillingPage(): JSX.Element {
                 Apply
               </button>
             </div>
-            <p className="hint">Students, teachers and 501(c)(3) ensembles qualify for a discount.</p>
+            <p className="hint">
+              Students, teachers and 501(c)(3) ensembles qualify for a discount on either interval.
+            </p>
           </div>
 
           {quote ? (
             <dl className="rounded-md bg-slate-50 px-3 py-2 text-sm">
               <div className="flex justify-between">
-                <dt>Annual plan</dt>
+                <dt>{quote.planKey === 'monthly' ? 'Monthly' : 'Annual'} plan</dt>
                 <dd>{money(quote.listPriceCents)}</dd>
               </div>
               <div className="flex justify-between text-green-700">
@@ -137,7 +194,7 @@ export function BillingPage(): JSX.Element {
                 <dd>−{money(quote.discountCents)}</dd>
               </div>
               <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 font-semibold">
-                <dt>Total</dt>
+                <dt>Total {quote.interval === 'month' ? 'per month' : 'per year'}</dt>
                 <dd>{money(quote.totalCents)}</dd>
               </div>
               {quote.requiresVerification ? (
@@ -154,7 +211,9 @@ export function BillingPage(): JSX.Element {
             disabled={checkout.isPending}
             onClick={() => checkout.mutate()}
           >
-            {checkout.isPending ? 'Starting…' : 'Subscribe annually'}
+            {checkout.isPending
+              ? 'Starting…'
+              : `Subscribe ${planKey === 'monthly' ? 'monthly' : 'annually'}`}
           </button>
           <p className="hint">
             Payments are not connected yet — checkout runs against a stub provider, so nothing is charged.

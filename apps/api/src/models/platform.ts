@@ -1,10 +1,12 @@
 import { Schema, type Connection, type Model, type Types } from 'mongoose';
 import {
+  billingIntervals,
   discountCategories,
   discountTypes,
   planKeys,
   tenantRoles,
   tenantStatuses,
+  type BillingInterval,
   type DiscountCategory,
   type PlanKey,
   type PlanLimits,
@@ -63,6 +65,8 @@ tenantSchema.index({ status: 1, currentPeriodEnd: 1 });
 export interface MembershipDoc {
   tenantId: Types.ObjectId;
   role: TenantRole;
+  /** Sections a section leader is responsible for; empty means the whole ensemble. */
+  sectionInstrumentIds: Types.ObjectId[];
 }
 
 export interface PlatformUserDoc {
@@ -88,6 +92,7 @@ const platformUserSchema = new Schema<PlatformUserDoc>(
         {
           tenantId: { type: Schema.Types.ObjectId, required: true },
           role: { type: String, enum: tenantRoles, required: true },
+          sectionInstrumentIds: { type: [Schema.Types.ObjectId], default: [] },
         },
         { _id: false },
       ),
@@ -126,7 +131,7 @@ export interface PlanDoc {
   name: string;
   priceCents: number;
   currency: string;
-  interval: 'year';
+  interval: BillingInterval;
   limits: PlanLimits;
   active: boolean;
 }
@@ -136,7 +141,7 @@ const planSchema = new Schema<PlanDoc>({
   name: { type: String, required: true },
   priceCents: { type: Number, required: true },
   currency: { type: String, default: 'usd' },
-  interval: { type: String, default: 'year' },
+  interval: { type: String, enum: billingIntervals, default: 'year' },
   limits: { type: planLimitsSchema, required: true },
   active: { type: Boolean, default: true },
 });
@@ -270,6 +275,7 @@ export interface InviteDoc {
   tenantId: Types.ObjectId;
   email: string;
   role: TenantRole;
+  sectionInstrumentIds: Types.ObjectId[];
   tokenHash: string;
   invitedBy: Types.ObjectId;
   expiresAt: Date;
@@ -282,6 +288,7 @@ const inviteSchema = new Schema<InviteDoc>(
     tenantId: { type: Schema.Types.ObjectId, required: true, index: true },
     email: { type: String, required: true, lowercase: true },
     role: { type: String, enum: tenantRoles, required: true },
+    sectionInstrumentIds: { type: [Schema.Types.ObjectId], default: [] },
     tokenHash: { type: String, required: true, index: true },
     invitedBy: { type: Schema.Types.ObjectId, required: true },
     expiresAt: { type: Date, required: true },

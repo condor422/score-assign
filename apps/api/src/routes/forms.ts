@@ -1,7 +1,7 @@
 import { Router, type Request } from 'express';
 import type { Types } from 'mongoose';
 import { intakeFormSchema, reservedSlugs } from '@score-assign/shared';
-import { requireAuth, requireRole, tenantContext } from '../middleware/context.js';
+import { requireAuth, requireCapability, tenantContext } from '../middleware/context.js';
 import { asyncRoute, badRequest, conflict, notFound } from '../middleware/errors.js';
 
 export const formsRouter = Router();
@@ -59,7 +59,7 @@ formsRouter.get(
 
 formsRouter.post(
   '/',
-  requireRole('director'),
+  requireCapability('form.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const input = intakeFormSchema.parse(req.body);
@@ -75,7 +75,7 @@ formsRouter.post(
 
 formsRouter.put(
   '/:id',
-  requireRole('director'),
+  requireCapability('form.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const input = intakeFormSchema.parse(req.body);
@@ -99,9 +99,14 @@ formsRouter.put(
   }),
 );
 
-/** Responses are shown verbatim next to the derived projection. */
+/**
+ * Responses are shown verbatim next to the derived projection. A raw submission
+ * holds whatever the musician typed, contact details included, so this needs
+ * the contact-grade capability rather than plain roster access.
+ */
 formsRouter.get(
   '/:id/responses',
+  requireCapability('form.readResponses'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const responses = await db.IntakeResponse.find({ formId: req.params.id })

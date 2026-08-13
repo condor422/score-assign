@@ -4,12 +4,19 @@ import { config } from '../config.js';
 import type { TenantRole } from '@score-assign/shared';
 
 export interface AccessTokenClaims {
+  /**
+   * Staff and musician tokens are signed with the same secret, so each states
+   * its audience and verification refuses the other kind outright.
+   */
+  scope?: 'staff';
   sub: string;
   email: string;
   /** Tenant the session is scoped to. Never read from the request body. */
   tenantId: string;
   tenantSlug: string;
   role: TenantRole;
+  /** Instrument sections a section leader is scoped to; empty means none yet. */
+  sectionInstrumentIds?: string[];
   isPlatformAdmin: boolean;
 }
 
@@ -25,11 +32,19 @@ function signOptions(ttl: string): SignOptions {
 }
 
 export function signAccessToken(claims: AccessTokenClaims): string {
-  return jwt.sign(claims, config.JWT_ACCESS_SECRET, signOptions(config.ACCESS_TOKEN_TTL));
+  return jwt.sign(
+    { ...claims, scope: 'staff' },
+    config.JWT_ACCESS_SECRET,
+    signOptions(config.ACCESS_TOKEN_TTL),
+  );
 }
 
 export function verifyAccessToken(token: string): AccessTokenClaims {
-  return jwt.verify(token, config.JWT_ACCESS_SECRET, { issuer: 'score-assign' }) as AccessTokenClaims;
+  const claims = jwt.verify(token, config.JWT_ACCESS_SECRET, {
+    issuer: 'score-assign',
+  }) as AccessTokenClaims;
+  if (claims.scope !== 'staff' || !claims.role) throw new Error('wrong token scope');
+  return claims;
 }
 
 export function signMusicianToken(claims: MusicianTokenClaims): string {

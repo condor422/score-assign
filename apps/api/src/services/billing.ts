@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { quotePrice, type PriceQuote } from '@score-assign/shared';
+import { quotePrice, type PaidPlanKey, type PriceQuote } from '@score-assign/shared';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 
@@ -7,7 +7,7 @@ export interface CheckoutRequest {
   tenantId: string;
   tenantSlug: string;
   customerEmail: string;
-  planKey: 'annual';
+  planKey: PaidPlanKey;
   listPriceCents: number;
   discount?: {
     code: string;
@@ -48,7 +48,7 @@ class StubBillingProvider implements BillingProvider {
   readonly name = 'stub';
 
   async createCheckoutSession(request: CheckoutRequest): Promise<CheckoutSession> {
-    const quote = quotePrice(request.listPriceCents, request.discount ?? null);
+    const quote = quotePrice(request.planKey, request.listPriceCents, request.discount ?? null);
     const sessionId = `stub_${randomUUID()}`;
     logger.info(
       { tenantId: request.tenantId, sessionId, totalCents: quote.totalCents },
