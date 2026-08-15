@@ -9,3 +9,6 @@ coverage/
 .DS_Store
 .vite/
 .turbo/
+
+# TypeScript incremental build state
+*.tsbuildinfo

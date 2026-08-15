@@ -1,9 +1,16 @@
 import { Router, type Request } from 'express';
-import { discountCodeInputSchema, discountCodePatchSchema } from '@score-assign/shared';
+import { Types } from 'mongoose';
+import {
+  discountCodeInputSchema,
+  discountCodePatchSchema,
+  planIntervals,
+  verifyDiscountSchema,
+} from '@score-assign/shared';
 import { getBaseConnection } from '../db/connection.js';
 import { platformModels } from '../models/platform.js';
 import { requireAuth, requirePlatformAdmin } from '../middleware/context.js';
 import { asyncRoute, notFound } from '../middleware/errors.js';
+import { recordAudit } from '../services/audit.js';
 
 /**
  * Platform-staff surface for pricing: discount codes and the verification
@@ -27,6 +34,7 @@ adminRouter.get(
         value: c.value,
         appliesToPlanKeys: c.appliesToPlanKeys,
         maxRedemptions: c.maxRedemptions,
+        perTenantLimit: c.perTenantLimit,
         redemptionCount: c.redemptionCount,
         requiresVerification: c.requiresVerification,
         validFrom: c.validFrom,
@@ -62,37 +70,106 @@ adminRouter.patch(
   }),
 );
 
+/** Tenant list for the console, optionally filtered by status or plan. */
 adminRouter.get(
   '/tenants',
-  asyncRoute(async (_req: Request, res) => {
-    const { Tenant } = platformModels(getBaseConnection());
-    const tenants = await Tenant.find({}).sort({ createdAt: -1 }).limit(500).lean();
+  asyncRoute(async (req: Request, res) => {
+    const { Tenant, DiscountCode, PlatformUser } = platformModels(getBaseConnection());
+    const filter: Record<string, unknown> = {};
+    if (typeof req.query.status === 'string' && req.query.status) filter.status = req.query.status;
+    if (typeof req.query.plan === 'string' && req.query.plan) filter.plan = req.query.plan;
+    if (req.query.pendingVerification === 'true') filter.pendingVerification = true;
+
+    const tenants = await Tenant.find(filter).sort({ createdAt: -1 }).limit(500).lean();
+    const codeIds = tenants.map((t) => t.discountCodeId).filter((id): id is Types.ObjectId => !!id);
+    const codes = await DiscountCode.find({ _id: { $in: codeIds } }).lean();
+    const codeById = new Map(codes.map((c) => [String(c._id), c]));
+    const seatCounts = await PlatformUser.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $unwind: '$memberships' },
+      { $group: { _id: '$memberships.tenantId', count: { $sum: 1 } } },
+    ]);
+    const seatsByTenant = new Map(seatCounts.map((s) => [String(s._id), s.count]));
+
     res.json(
-      tenants.map((t) => ({
-        id: String(t._id),
-        slug: t.slug,
-        name: t.name,
-        status: t.status,
-        plan: t.plan,
-        trialEndsAt: t.trialEndsAt,
-        currentPeriodEnd: t.currentPeriodEnd,
-        pendingVerification: t.pendingVerification,
-      })),
+      tenants.map((t) => {
+        const code = t.discountCodeId ? codeById.get(String(t.discountCodeId)) : undefined;
+        return {
+          id: String(t._id),
+          slug: t.slug,
+          name: t.name,
+          contactEmail: t.contactEmail,
+          status: t.status,
+          plan: t.plan,
+          interval: planIntervals[t.plan],
+          seats: seatsByTenant.get(String(t._id)) ?? 0,
+          trialEndsAt: t.trialEndsAt,
+          currentPeriodEnd: t.currentPeriodEnd,
+          pendingVerification: t.pendingVerification,
+          createdAt: t.createdAt,
+          discountCode: code
+            ? { code: code.code, label: code.label, category: code.category }
+            : null,
+        };
+      }),
     );
   }),
 );
 
-/** Clears the verification hold once eligibility evidence has been reviewed. */
+/** Counts for the console's summary strip. */
+adminRouter.get(
+  '/metrics',
+  asyncRoute(async (_req: Request, res) => {
+    const { Tenant, DiscountCode } = platformModels(getBaseConnection());
+    const [byStatus, byPlan, pendingVerification, activeCodes] = await Promise.all([
+      Tenant.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Tenant.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: '$plan', count: { $sum: 1 } } },
+      ]),
+      Tenant.countDocuments({ pendingVerification: true }),
+      DiscountCode.countDocuments({ active: true }),
+    ]);
+    res.json({
+      tenantsByStatus: Object.fromEntries(byStatus.map((s) => [s._id, s.count])),
+      tenantsByPlan: Object.fromEntries(byPlan.map((p) => [p._id, p.count])),
+      pendingVerification,
+      activeCodes,
+    });
+  }),
+);
+
+/**
+ * Resolves the verification hold on a discount claim. Approving clears the
+ * hold; rejecting also drops the code from the tenant so a bogus claim does
+ * not sit pending forever.
+ */
 adminRouter.post(
   '/tenants/:id/verify-discount',
   asyncRoute(async (req: Request, res) => {
+    const input = verifyDiscountSchema.parse(req.body ?? {});
     const { Tenant } = platformModels(getBaseConnection());
-    const tenant = await Tenant.findByIdAndUpdate(
-      req.params.id,
-      { $set: { pendingVerification: false } },
-      { new: true },
-    );
+    const tenant = await Tenant.findById(req.params.id);
     if (!tenant) throw notFound('Tenant not found');
-    res.json({ id: String(tenant._id), pendingVerification: tenant.pendingVerification });
+
+    tenant.pendingVerification = false;
+    if (input.decision === 'reject') tenant.discountCodeId = null;
+    await tenant.save();
+
+    await recordAudit({
+      tenantId: tenant._id,
+      actorUserId: new Types.ObjectId(req.auth!.sub),
+      action: `discount.verification_${input.decision}`,
+      targetType: 'tenant',
+      targetId: String(tenant._id),
+      meta: { note: input.note ?? null },
+      ip: req.ip ?? null,
+    });
+
+    res.json({
+      id: String(tenant._id),
+      pendingVerification: tenant.pendingVerification,
+      decision: input.decision,
+    });
   }),
 );

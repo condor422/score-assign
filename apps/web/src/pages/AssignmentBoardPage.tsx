@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ApiError, api } from '../lib/api';
+import { useSession } from '../auth/SessionContext';
 import type { Board, BoardAssignment, BoardPart, RunStats, RunWarning, Season } from '../lib/types';
 
 const POOL_ID = 'pool';
@@ -30,14 +31,20 @@ function MusicianChip({
   data,
   locked,
   confirmation,
+  readOnly,
 }: {
   label: string;
   dragId: string;
   data: DragData;
   locked?: boolean;
   confirmation?: BoardAssignment['confirmation'];
+  readOnly: boolean;
 }): JSX.Element {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId, data });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: dragId,
+    data,
+    disabled: readOnly,
+  });
 
   return (
     <div
@@ -45,7 +52,8 @@ function MusicianChip({
       {...attributes}
       {...listeners}
       className={clsx(
-        'flex cursor-grab touch-none items-center gap-2 rounded-md border px-2 py-1.5 text-sm',
+        'flex touch-none items-center gap-2 rounded-md border px-2 py-1.5 text-sm',
+        readOnly ? 'cursor-default' : 'cursor-grab',
         isDragging ? 'opacity-30' : 'bg-white',
         locked ? 'border-amber-400' : 'border-slate-300',
       )}
@@ -62,12 +70,14 @@ function PartColumn({
   part,
   onLock,
   onRemove,
+  readOnly,
 }: {
   part: BoardPart;
   onLock(assignment: BoardAssignment): void;
   onRemove(assignment: BoardAssignment): void;
+  readOnly: boolean;
 }): JSX.Element {
-  const { setNodeRef, isOver } = useDroppable({ id: part.id });
+  const { setNodeRef, isOver } = useDroppable({ id: part.id, disabled: readOnly });
   const short = part.assignments.length < part.minPlayers;
 
   return (
@@ -103,25 +113,28 @@ function PartColumn({
               label={assignment.musicianName}
               locked={assignment.locked}
               confirmation={assignment.confirmation}
+              readOnly={readOnly}
               data={{
                 assignmentId: assignment.id,
                 musicianId: assignment.musicianId,
                 musicianName: assignment.musicianName,
               }}
             />
-            <div className="mt-0.5 hidden gap-2 px-1 text-xs text-slate-500 group-hover:flex">
-              <button type="button" className="underline" onClick={() => onLock(assignment)}>
-                {assignment.locked ? 'Unlock' : 'Lock'}
-              </button>
-              <button type="button" className="underline" onClick={() => onRemove(assignment)}>
-                Remove
-              </button>
-            </div>
+            {readOnly ? null : (
+              <div className="mt-0.5 hidden gap-2 px-1 text-xs text-slate-500 group-hover:flex">
+                <button type="button" className="underline" onClick={() => onLock(assignment)}>
+                  {assignment.locked ? 'Unlock' : 'Lock'}
+                </button>
+                <button type="button" className="underline" onClick={() => onRemove(assignment)}>
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {part.assignments.length === 0 ? (
           <p className="rounded border border-dashed border-slate-300 px-2 py-3 text-center text-xs text-slate-400">
-            Drop a musician here
+            {readOnly ? 'Nobody assigned' : 'Drop a musician here'}
           </p>
         ) : null}
       </div>
@@ -129,8 +142,8 @@ function PartColumn({
   );
 }
 
-function Pool({ board }: { board: Board }): JSX.Element {
-  const { setNodeRef, isOver } = useDroppable({ id: POOL_ID });
+function Pool({ board, readOnly }: { board: Board; readOnly: boolean }): JSX.Element {
+  const { setNodeRef, isOver } = useDroppable({ id: POOL_ID, disabled: readOnly });
 
   return (
     <div
@@ -147,6 +160,7 @@ function Pool({ board }: { board: Board }): JSX.Element {
             key={musician.id}
             dragId={`pool-${musician.id}`}
             label={musician.name}
+            readOnly={readOnly}
             data={{ assignmentId: null, musicianId: musician.id, musicianName: musician.name }}
           />
         ))}
@@ -158,6 +172,8 @@ function Pool({ board }: { board: Board }): JSX.Element {
 
 export function AssignmentBoardPage(): JSX.Element {
   const queryClient = useQueryClient();
+  const { can } = useSession();
+  const canEdit = can('assignment.write');
   const [dragging, setDragging] = useState<DragData | null>(null);
   const [notice, setNotice] = useState<{ tone: 'warn' | 'info' | 'error'; text: string } | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -288,22 +304,32 @@ export function AssignmentBoardPage(): JSX.Element {
         <div>
           <h1 className="text-xl font-semibold">Assignments</h1>
           <p className="hint">
-            Nothing is assigned until you run it. Drag a card to move a musician; locked cards survive a
-            re-run.
+            {canEdit
+              ? 'Nothing is assigned until you run it. Drag a card to move a musician; locked cards survive a re-run.'
+              : 'A read-only view of who is playing what.'}
           </p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-primary" type="button" disabled={run.isPending} onClick={() => run.mutate()}>
-            {run.isPending ? 'Assigning…' : 'Assign parts now'}
-          </button>
-          <button
-            className="btn-secondary"
-            type="button"
-            disabled={notify.isPending}
-            onClick={() => notify.mutate()}
-          >
-            Email parts
-          </button>
+          {can('assignment.run') ? (
+            <button
+              className="btn-primary"
+              type="button"
+              disabled={run.isPending}
+              onClick={() => run.mutate()}
+            >
+              {run.isPending ? 'Assigning…' : 'Assign parts now'}
+            </button>
+          ) : null}
+          {can('assignment.notify') ? (
+            <button
+              className="btn-secondary"
+              type="button"
+              disabled={notify.isPending}
+              onClick={() => notify.mutate()}
+            >
+              Email parts
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -367,7 +393,7 @@ export function AssignmentBoardPage(): JSX.Element {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-4 overflow-x-auto pb-4">
-            <Pool board={board.data} />
+            <Pool board={board.data} readOnly={!canEdit} />
             {grouped.map(([songTitle, parts]) => (
               <div key={songTitle} className="flex gap-4">
                 {parts.map((part) => (
@@ -378,6 +404,7 @@ export function AssignmentBoardPage(): JSX.Element {
                       lock.mutate({ assignmentId: assignment.id, locked: !assignment.locked })
                     }
                     onRemove={(assignment) => remove.mutate(assignment.id)}
+                    readOnly={!canEdit}
                   />
                 ))}
               </div>

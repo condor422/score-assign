@@ -4,7 +4,7 @@
  * exercised locally. Safe to re-run: it removes the demo tenant first.
  */
 import argon2 from 'argon2';
-import { annualLimits } from '@score-assign/shared';
+import { paidLimits, type TenantRole } from '@score-assign/shared';
 import { config } from './config.js';
 import { connect, disconnect, getBaseConnection } from './db/connection.js';
 import { getTenantModels } from './db/tenantRegistry.js';
@@ -15,6 +15,15 @@ import { logger } from './logger.js';
 const DEMO_SLUG = 'afs';
 const DEMO_EMAIL = 'director@example.org';
 const DEMO_PASSWORD = 'DemoDirector1';
+const STAFF_PASSWORD = 'DemoStaff1';
+
+/** One account per role so the capability rules can be exercised by hand. */
+const demoStaff: { email: string; name: string; role: TenantRole; section?: string }[] = [
+  { email: 'admin@example.org', name: 'Demo Administrator', role: 'admin' },
+  { email: 'assistant@example.org', name: 'Demo Assistant Director', role: 'director' },
+  { email: 'section@example.org', name: 'Demo Section Leader', role: 'section_leader', section: 'alto_flute' },
+  { email: 'viewer@example.org', name: 'Demo Viewer', role: 'viewer' },
+];
 
 const demoMusicians = [
   { name: 'Ana Reyes', instruments: ['c_flute', 'piccolo'], double: true, exp: 'graduate_professional', diff: 'challenging' },
@@ -39,7 +48,9 @@ async function main(): Promise<void> {
   if (stale) {
     await getBaseConnection().useDb(stale.dbName, { useCache: true }).dropDatabase();
     await Tenant.deleteOne({ _id: stale._id });
-    await PlatformUser.deleteOne({ email: DEMO_EMAIL });
+    await PlatformUser.deleteMany({
+      email: { $in: [DEMO_EMAIL, ...demoStaff.map((s) => s.email)] },
+    });
     logger.info('removed previous demo tenant');
   }
 
@@ -52,20 +63,36 @@ async function main(): Promise<void> {
   // Demo tenant is put on the paid plan so limits do not obscure the flow.
   await Tenant.updateOne(
     { _id: tenant._id },
-    { $set: { status: 'active', plan: 'annual', limits: annualLimits } },
+    { $set: { status: 'active', plan: 'annual', limits: paidLimits } },
   );
 
   await PlatformUser.create({
     email: DEMO_EMAIL,
     name: 'Demo Director',
     passwordHash: await argon2.hash(DEMO_PASSWORD, { type: argon2.argon2id }),
-    memberships: [{ tenantId: tenant._id, role: 'owner' }],
+    memberships: [{ tenantId: tenant._id, role: 'owner', sectionInstrumentIds: [] }],
     isPlatformAdmin: true,
   });
 
   const models = getTenantModels(tenant.dbName);
   const instruments = await models.Instrument.find({}).lean();
   const instrumentByKey = new Map(instruments.map((i) => [i.key, i]));
+
+  const staffPasswordHash = await argon2.hash(STAFF_PASSWORD, { type: argon2.argon2id });
+  for (const staff of demoStaff) {
+    await PlatformUser.create({
+      email: staff.email,
+      name: staff.name,
+      passwordHash: staffPasswordHash,
+      memberships: [
+        {
+          tenantId: tenant._id,
+          role: staff.role,
+          sectionInstrumentIds: staff.section ? [instrumentByKey.get(staff.section)!._id] : [],
+        },
+      ],
+    });
+  }
 
   const form = await models.IntakeForm.findOne({});
   if (form) {
@@ -134,6 +161,8 @@ async function main(): Promise<void> {
       tenant: tenant.slug,
       login: DEMO_EMAIL,
       password: DEMO_PASSWORD,
+      staffLogins: demoStaff.map((s) => `${s.email} (${s.role})`),
+      staffPassword: STAFF_PASSWORD,
       formUrl: `http://${DEMO_SLUG}.localhost:5173/register/registration`,
       parts: parts.length,
       musicians: demoMusicians.length,

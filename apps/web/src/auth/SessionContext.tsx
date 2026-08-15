@@ -8,11 +8,16 @@ import {
   type ReactNode,
 } from 'react';
 import { api, setAccessToken } from '../lib/api';
-import type { SessionResponse } from '../lib/types';
+import type { Capability, SessionResponse } from '../lib/types';
 
 interface SessionState {
   session: SessionResponse | null;
   loading: boolean;
+  /**
+   * Mirrors the server's capability table for rendering decisions only; the
+   * API enforces the same rules and redacts data it will not release.
+   */
+  can(capability: Capability): boolean;
   signIn(email: string, password: string): Promise<void>;
   signUp(input: {
     organizationName: string;
@@ -57,6 +62,9 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
     () => ({
       session,
       loading,
+      can(capability) {
+        return session?.user.capabilities.includes(capability) ?? false;
+      },
       async signIn(email, password) {
         adopt(await api<SessionResponse>('/auth/login', { method: 'POST', body: { email, password } }));
       },

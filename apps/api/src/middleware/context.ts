@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { roleRank, type TenantRole } from '@score-assign/shared';
+import { roleHasCapability, type Capability } from '@score-assign/shared';
 import { getBaseConnection } from '../db/connection.js';
 import { getTenantModels } from '../db/tenantRegistry.js';
 import { platformModels, type TenantDoc } from '../models/platform.js';
@@ -44,14 +44,32 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
   }
 }
 
-export function requireRole(minimum: TenantRole) {
+/**
+ * The only access check in the app. Roles map to capabilities in one shared
+ * table, so a new role never means auditing route guards.
+ */
+export function requireCapability(capability: Capability) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.auth) return next(unauthorized());
-    if (roleRank[req.auth.role] < roleRank[minimum]) {
-      return next(forbidden(`Requires ${minimum} access or higher`));
+    if (!roleHasCapability(req.auth.role, capability)) {
+      return next(forbidden(`Your role cannot ${capability.replace('.', ' ')}`));
     }
     next();
   };
+}
+
+export function can(req: Request, capability: Capability): boolean {
+  return req.auth ? roleHasCapability(req.auth.role, capability) : false;
+}
+
+/**
+ * Instrument sections a request may read. Section leaders see only the sections
+ * they lead; every other role sees the whole ensemble, so this is a no-op for
+ * them.
+ */
+export function sectionScope(req: Request): string[] | null {
+  if (req.auth?.role !== 'section_leader') return null;
+  return req.auth.sectionInstrumentIds ?? [];
 }
 
 export function requirePlatformAdmin(req: Request, _res: Response, next: NextFunction): void {

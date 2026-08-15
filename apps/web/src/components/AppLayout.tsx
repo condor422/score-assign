@@ -2,18 +2,23 @@ import { NavLink, Outlet } from 'react-router-dom';
 import clsx from 'clsx';
 import { useSession } from '../auth/SessionContext';
 import { TrialBanner } from './TrialBanner';
+import { roleLabels, type Capability } from '../lib/types';
 
-const navItems = [
-  { to: '/', label: 'Overview' },
-  { to: '/program', label: 'Program' },
-  { to: '/musicians', label: 'Musicians' },
-  { to: '/assignments', label: 'Assignments' },
-  { to: '/form', label: 'Intake form' },
-  { to: '/billing', label: 'Plan' },
+/** `capability: null` means every signed-in role sees the item. */
+const navItems: { to: string; label: string; capability: Capability | null }[] = [
+  { to: '/', label: 'Overview', capability: null },
+  { to: '/roster', label: 'Roster', capability: 'roster.read' },
+  { to: '/program', label: 'Program', capability: 'program.write' },
+  { to: '/musicians', label: 'Musicians', capability: 'roster.write' },
+  { to: '/assignments', label: 'Assignments', capability: 'roster.read' },
+  { to: '/form', label: 'Intake form', capability: 'form.write' },
+  { to: '/team', label: 'Team', capability: 'team.manage' },
+  { to: '/billing', label: 'Plan', capability: 'billing.manage' },
 ];
 
 export function AppLayout(): JSX.Element {
-  const { session, signOut } = useSession();
+  const { session, signOut, can } = useSession();
+  const items = navItems.filter((item) => item.capability === null || can(item.capability));
 
   return (
     <div className="min-h-screen">
@@ -22,15 +27,23 @@ export function AppLayout(): JSX.Element {
           <div>
             <p className="text-sm font-semibold">{session?.tenant.name}</p>
             <p className="text-xs text-slate-500">
-              {session?.tenant.slug}.scoreassign.com · {session?.user.role}
+              {session?.tenant.slug}.scoreassign.com ·{' '}
+              {session ? roleLabels[session.user.role] : ''}
             </p>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => void signOut()}>
-            Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            {session?.user.isPlatformAdmin ? (
+              <NavLink className="btn-secondary" to="/platform">
+                Platform
+              </NavLink>
+            ) : null}
+            <button type="button" className="btn-secondary" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 px-4 pb-2 text-sm">
-          {navItems.map((item) => (
+          {items.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

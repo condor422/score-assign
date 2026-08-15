@@ -142,7 +142,7 @@ export function MusiciansPage(): JSX.Element {
                 <tr key={musician.id} className="border-t border-slate-100">
                   <td className="py-2">{musician.name}</td>
                   <td className="py-2 text-slate-600">
-                    {musician.email}
+                    {musician.email ?? <span className="hint">withheld</span>}
                     {musician.phone ? <span className="block text-xs">{musician.phone}</span> : null}
                   </td>
                   <td className="py-2">

@@ -6,7 +6,7 @@ import {
   ordinalPartLabel,
   runAssignmentSchema,
 } from '@score-assign/shared';
-import { requireAuth, requireRole, tenantContext } from '../middleware/context.js';
+import { can, requireAuth, requireCapability, tenantContext } from '../middleware/context.js';
 import { asyncRoute, notFound } from '../middleware/errors.js';
 import { executeRun, revertRun, warningsForMove } from '../services/assignmentService.js';
 import { assignmentNoticeEmail, emailProvider } from '../services/email.js';
@@ -21,8 +21,10 @@ assignmentsRouter.use(requireAuth);
  */
 assignmentsRouter.get(
   '/seasons/:seasonId/board',
+  requireCapability('roster.read'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
+    const showContact = can(req, 'roster.readContact');
     const seasonId = new Types.ObjectId(req.params.seasonId);
     const [parts, songs, instruments, musicians, assignments, latestRun] = await Promise.all([
       db.Part.find({ seasonId }).sort({ order: 1, partNumber: 1 }).lean(),
@@ -67,7 +69,7 @@ assignmentsRouter.get(
             id: String(a._id),
             musicianId: String(a.musicianId),
             musicianName: musician?.name ?? 'Unknown musician',
-            musicianEmail: musician?.email ?? null,
+            ...(showContact ? { musicianEmail: musician?.email ?? null } : {}),
             source: a.source,
             locked: a.locked,
             confirmation: a.confirmation.status,
@@ -101,7 +103,7 @@ assignmentsRouter.get(
  */
 assignmentsRouter.post(
   '/seasons/:seasonId/runs',
-  requireRole('director'),
+  requireCapability('assignment.run'),
   asyncRoute(async (req: Request, res) => {
     const { tenant, db } = tenantContext(req);
     const input = runAssignmentSchema.parse(req.body ?? {});
@@ -159,7 +161,7 @@ assignmentsRouter.get(
 
 assignmentsRouter.post(
   '/runs/:runId/revert',
-  requireRole('director'),
+  requireCapability('assignment.run'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const restored = await revertRun(db, req.params.runId!);
@@ -170,7 +172,7 @@ assignmentsRouter.post(
 /** Drag a musician from the pool onto a part. */
 assignmentsRouter.post(
   '/seasons/:seasonId/assignments',
-  requireRole('director'),
+  requireCapability('assignment.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const input = createAssignmentSchema.parse(req.body);
@@ -201,7 +203,7 @@ assignmentsRouter.post(
 /** Drag a musician from one part to another. */
 assignmentsRouter.patch(
   '/assignments/:id',
-  requireRole('director'),
+  requireCapability('assignment.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const input = moveAssignmentSchema.parse(req.body);
@@ -233,7 +235,7 @@ assignmentsRouter.patch(
 
 assignmentsRouter.post(
   '/assignments/:id/lock',
-  requireRole('director'),
+  requireCapability('assignment.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const locked = req.body?.locked !== false;
@@ -249,7 +251,7 @@ assignmentsRouter.post(
 
 assignmentsRouter.delete(
   '/assignments/:id',
-  requireRole('director'),
+  requireCapability('assignment.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const deleted = await db.Assignment.findByIdAndDelete(req.params.id);
@@ -261,7 +263,7 @@ assignmentsRouter.delete(
 /** Emails each musician the parts they currently hold. */
 assignmentsRouter.post(
   '/seasons/:seasonId/notify',
-  requireRole('director'),
+  requireCapability('assignment.notify'),
   asyncRoute(async (req: Request, res) => {
     const { tenant, db } = tenantContext(req);
     const seasonId = new Types.ObjectId(req.params.seasonId);

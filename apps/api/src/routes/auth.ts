@@ -2,7 +2,12 @@ import { Router, type Request } from 'express';
 import argon2 from 'argon2';
 import type { Types } from 'mongoose';
 import rateLimit from 'express-rate-limit';
-import { acceptInviteSchema, loginSchema, signupSchema } from '@score-assign/shared';
+import {
+  acceptInviteSchema,
+  capabilitiesForRole,
+  loginSchema,
+  signupSchema,
+} from '@score-assign/shared';
 import { config } from '../config.js';
 import { getBaseConnection } from '../db/connection.js';
 import { platformModels, type PlatformUserDoc, type TenantDoc } from '../models/platform.js';
@@ -41,7 +46,14 @@ function refreshCookieOptions() {
 function sessionPayload(user: PlatformUserDoc, tenant: TenantDoc, claims: AccessTokenClaims) {
   return {
     accessToken: signAccessToken(claims),
-    user: { id: String(user._id), name: user.name, email: user.email, role: claims.role },
+    user: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      role: claims.role,
+      capabilities: capabilitiesForRole(claims.role),
+      isPlatformAdmin: claims.isPlatformAdmin,
+    },
     tenant: {
       id: String(tenant._id),
       slug: tenant.slug,
@@ -92,7 +104,7 @@ authRouter.post(
       email: input.email,
       name: input.name,
       passwordHash,
-      memberships: [{ tenantId: tenant._id, role: 'owner' }],
+      memberships: [{ tenantId: tenant._id, role: 'owner', sectionInstrumentIds: [] }],
     });
 
     const refresh = await issueRefreshToken(user._id);
@@ -104,6 +116,7 @@ authRouter.post(
         tenantId: String(tenant._id),
         tenantSlug: tenant.slug,
         role: 'owner',
+        sectionInstrumentIds: [],
         isPlatformAdmin: user.isPlatformAdmin,
       }),
     );
@@ -144,6 +157,7 @@ authRouter.post(
         tenantId: String(tenant._id),
         tenantSlug: tenant.slug,
         role: membership.role,
+        sectionInstrumentIds: membership.sectionInstrumentIds.map(String),
         isPlatformAdmin: user.isPlatformAdmin,
       }),
     );
@@ -187,6 +201,7 @@ authRouter.post(
         tenantId: String(tenant._id),
         tenantSlug: tenant.slug,
         role: membership.role,
+        sectionInstrumentIds: membership.sectionInstrumentIds.map(String),
         isPlatformAdmin: user.isPlatformAdmin,
       }),
     );
@@ -238,7 +253,11 @@ authRouter.post(
     let user = await PlatformUser.findOne({ email: invite.email });
     if (user) {
       if (!user.memberships.some((m) => String(m.tenantId) === String(tenant._id))) {
-        user.memberships.push({ tenantId: tenant._id, role: invite.role });
+        user.memberships.push({
+          tenantId: tenant._id,
+          role: invite.role,
+          sectionInstrumentIds: invite.sectionInstrumentIds,
+        });
         await user.save();
       }
     } else {
@@ -246,7 +265,13 @@ authRouter.post(
         email: invite.email,
         name: input.name,
         passwordHash,
-        memberships: [{ tenantId: tenant._id, role: invite.role }],
+        memberships: [
+          {
+            tenantId: tenant._id,
+            role: invite.role,
+            sectionInstrumentIds: invite.sectionInstrumentIds,
+          },
+        ],
       });
     }
 
@@ -262,6 +287,7 @@ authRouter.post(
         tenantId: String(tenant._id),
         tenantSlug: tenant.slug,
         role: invite.role,
+        sectionInstrumentIds: invite.sectionInstrumentIds.map(String),
         isPlatformAdmin: user.isPlatformAdmin,
       }),
     );
