@@ -1,4 +1,4 @@
-import { freeLimits, planCatalog, type PlanLimits } from '@score-assign/shared';
+import { freeLimits, isPaidPlanKey, planCatalog, type PlanLimits } from '@score-assign/shared';
 import type { TenantDoc } from '../models/platform.js';
 import type { TenantModels } from '../models/tenant.js';
 import { paymentRequired } from './errors.js';
@@ -12,7 +12,7 @@ export function effectiveLimits(tenant: TenantDoc, now: Date = new Date()): Plan
   if (tenant.status === 'trialing' && tenant.trialEndsAt && tenant.trialEndsAt > now) {
     return planCatalog.find((p) => p.key === 'annual')!.limits;
   }
-  if (tenant.status === 'active' && tenant.plan === 'annual') {
+  if (tenant.status === 'active' && isPaidPlanKey(tenant.plan)) {
     return tenant.limits;
   }
   return freeLimits;
@@ -62,7 +62,7 @@ export async function assertCapacity(
   if (used + count <= max) return;
 
   throw paymentRequired(
-    `Your ${tenant.plan === 'annual' ? 'plan' : 'free plan'} allows ${max} ${resource}. ` +
+    `Your ${isPaidPlanKey(tenant.plan) ? 'plan' : 'free plan'} allows ${max} ${resource}. ` +
       `You have ${used}. Upgrade to add more.`,
     { resource, limit: max, used, requested: count },
   );

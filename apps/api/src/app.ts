@@ -14,6 +14,7 @@ import { assignmentsRouter } from './routes/assignments.js';
 import { billingRouter } from './routes/billing.js';
 import { adminRouter } from './routes/admin.js';
 import { teamRouter } from './routes/team.js';
+import { rosterRouter } from './routes/roster.js';
 import { musicianAuthRouter, musicianPortalRouter } from './routes/musicianPortal.js';
 
 export function createApp(): Express {
@@ -51,6 +52,7 @@ export function createApp(): Express {
   app.use('/api/v1/musician-auth', musicianAuthRouter);
   app.use('/api/v1/musician', musicianPortalRouter);
   app.use('/api/v1/forms', formsRouter);
+  app.use('/api/v1/roster', rosterRouter);
   app.use('/api/v1', catalogRouter);
   app.use('/api/v1', assignmentsRouter);
   app.use('/api/v1/billing', billingRouter);

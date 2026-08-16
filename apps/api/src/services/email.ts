@@ -27,10 +27,10 @@ export function emailProvider(): EmailProvider {
 
 export function magicLinkEmail(params: {
   to: string;
-  tenantSlug: string;
+  origin: string;
   token: string;
 }): EmailMessage {
-  const url = `https://${params.tenantSlug}.${config.APP_ROOT_DOMAIN}/musician/verify?token=${params.token}`;
+  const url = `${params.origin}/musician/verify?token=${params.token}`;
   return {
     to: params.to,
     subject: 'Your part assignment sign-in link',

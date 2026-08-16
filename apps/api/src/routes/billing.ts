@@ -1,10 +1,19 @@
 import { Router, type Request } from 'express';
 import { Types } from 'mongoose';
-import { checkoutSchema, planCatalog, quotePrice } from '@score-assign/shared';
+import {
+  checkoutSchema,
+  paidLimits,
+  periodEndFor,
+  planCatalog,
+  planIntervals,
+  quotePrice,
+  quoteRequestSchema,
+  type PaidPlanKey,
+} from '@score-assign/shared';
 import { config } from '../config.js';
 import { getBaseConnection } from '../db/connection.js';
 import { platformModels, type DiscountCodeDoc, type TenantDoc } from '../models/platform.js';
-import { requireAuth, requireRole, tenantContext } from '../middleware/context.js';
+import { requireAuth, requireCapability, tenantContext } from '../middleware/context.js';
 import { asyncRoute, badRequest, notFound } from '../middleware/errors.js';
 import { effectiveLimits, isTrialExpired } from '../middleware/entitlements.js';
 import { billingProvider } from '../services/billing.js';
@@ -12,6 +21,11 @@ import { recordAudit } from '../services/audit.js';
 
 export const billingRouter = Router();
 billingRouter.use(requireAuth);
+
+/** List price for a plan, configurable per environment. */
+export function listPriceCents(planKey: PaidPlanKey): number {
+  return planKey === 'monthly' ? config.MONTHLY_PRICE_CENTS : config.ANNUAL_PRICE_CENTS;
+}
 
 /**
  * Resolves a discount code for a tenant, rejecting inactive, expired,
@@ -21,7 +35,7 @@ billingRouter.use(requireAuth);
 async function resolveDiscount(
   code: string,
   tenant: TenantDoc,
-  planKey: 'annual',
+  planKey: PaidPlanKey,
 ): Promise<DiscountCodeDoc> {
   const { DiscountCode, Redemption } = platformModels(getBaseConnection());
   const discount = await DiscountCode.findOne({ code: code.toUpperCase() });
@@ -56,8 +70,8 @@ billingRouter.get(
       plans: (plans.length > 0 ? plans : planCatalog).map((p) => ({
         key: p.key,
         name: p.name,
-        priceCents: p.key === 'annual' ? config.ANNUAL_PRICE_CENTS : p.priceCents,
-        interval: 'year',
+        priceCents: p.key === 'free' ? 0 : listPriceCents(p.key as PaidPlanKey),
+        interval: planIntervals[p.key],
         limits: p.limits,
       })),
       current: {
@@ -77,14 +91,16 @@ billingRouter.post(
   '/quote',
   asyncRoute(async (req: Request, res) => {
     const { tenant } = tenantContext(req);
-    const code = String(req.body?.discountCode ?? '').trim();
+    const input = quoteRequestSchema.parse(req.body ?? {});
+    const price = listPriceCents(input.planKey);
+    const code = input.discountCode ?? '';
     if (!code) {
-      res.json(quotePrice(config.ANNUAL_PRICE_CENTS, null));
+      res.json(quotePrice(input.planKey, price, null));
       return;
     }
-    const discount = await resolveDiscount(code, tenant, 'annual');
+    const discount = await resolveDiscount(code, tenant, input.planKey);
     res.json({
-      ...quotePrice(config.ANNUAL_PRICE_CENTS, {
+      ...quotePrice(input.planKey, price, {
         code: discount.code,
         label: discount.label,
         type: discount.type,
@@ -102,22 +118,22 @@ billingRouter.post(
  */
 billingRouter.post(
   '/checkout',
-  requireRole('owner'),
+  requireCapability('billing.manage'),
   asyncRoute(async (req: Request, res) => {
     const { tenant } = tenantContext(req);
     const input = checkoutSchema.parse(req.body);
     const { Tenant, Subscription, DiscountCode, Redemption } = platformModels(getBaseConnection());
 
     const discount = input.discountCode
-      ? await resolveDiscount(input.discountCode, tenant, 'annual')
+      ? await resolveDiscount(input.discountCode, tenant, input.planKey)
       : null;
 
     const session = await billingProvider().createCheckoutSession({
       tenantId: String(tenant._id),
       tenantSlug: tenant.slug,
       customerEmail: tenant.contactEmail,
-      planKey: 'annual',
-      listPriceCents: config.ANNUAL_PRICE_CENTS,
+      planKey: input.planKey,
+      listPriceCents: listPriceCents(input.planKey),
       discount: discount
         ? {
             code: discount.code,
@@ -128,13 +144,11 @@ billingRouter.post(
         : null,
     });
 
-    const annual = planCatalog.find((p) => p.key === 'annual')!;
-    const periodEnd = new Date();
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    const periodEnd = periodEndFor(input.planKey);
 
     await Subscription.create({
       tenantId: tenant._id,
-      planKey: 'annual',
+      planKey: input.planKey,
       provider: session.provider,
       providerSubscriptionId: session.sessionId,
       status: session.simulated ? 'active' : 'pending',
@@ -157,8 +171,8 @@ billingRouter.post(
         {
           $set: {
             status: 'active',
-            plan: 'annual',
-            limits: annual.limits,
+            plan: input.planKey,
+            limits: paidLimits,
             currentPeriodEnd: periodEnd,
             discountCodeId: discount?._id ?? null,
             // Verification-gated codes still owe proof of eligibility.
@@ -174,7 +188,11 @@ billingRouter.post(
       action: 'billing.checkout_started',
       targetType: 'subscription',
       targetId: session.sessionId,
-      meta: { totalCents: session.quote.totalCents, code: discount?.code ?? null },
+      meta: {
+        planKey: input.planKey,
+        totalCents: session.quote.totalCents,
+        code: discount?.code ?? null,
+      },
       ip: req.ip ?? null,
     });
 

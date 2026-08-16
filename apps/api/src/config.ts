@@ -18,6 +18,7 @@ const schema = z.object({
   EXTRA_CORS_ORIGINS: z.string().default(''),
   BILLING_PROVIDER: z.enum(['stub']).default('stub'),
   ANNUAL_PRICE_CENTS: z.coerce.number().int().default(9600),
+  MONTHLY_PRICE_CENTS: z.coerce.number().int().default(1200),
   TRIAL_DAYS: z.coerce.number().int().default(7),
   EMAIL_PROVIDER: z.enum(['log']).default('log'),
   EMAIL_FROM: z.string().default('no-reply@scoreassign.com'),

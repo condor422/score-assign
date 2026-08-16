@@ -1,12 +1,46 @@
+export type TenantRole = 'owner' | 'admin' | 'director' | 'section_leader' | 'viewer';
+
+export type Capability =
+  | 'roster.read'
+  | 'roster.readContact'
+  | 'roster.write'
+  | 'program.write'
+  | 'assignment.run'
+  | 'assignment.write'
+  | 'assignment.notify'
+  | 'form.write'
+  | 'form.readResponses'
+  | 'billing.manage'
+  | 'team.manage';
+
+export type PlanKey = 'free' | 'monthly' | 'annual';
+export type PaidPlanKey = 'monthly' | 'annual';
+export type BillingInterval = 'month' | 'year';
+
+export const roleLabels: Record<TenantRole, string> = {
+  owner: 'Owner',
+  admin: 'Administrator',
+  director: 'Director',
+  section_leader: 'Section leader',
+  viewer: 'Viewer',
+};
+
 export interface SessionResponse {
   accessToken: string;
-  user: { id: string; name: string; email: string; role: 'owner' | 'admin' | 'director' | 'viewer' };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: TenantRole;
+    capabilities: Capability[];
+    isPlatformAdmin: boolean;
+  };
   tenant: {
     id: string;
     slug: string;
     name: string;
     status: string;
-    plan: 'free' | 'annual';
+    plan: PlanKey;
     trialEndsAt: string | null;
     trialExpired: boolean;
     limits: { maxParts: number; maxMusicians: number; maxSongs: number; maxSeats: number };
@@ -40,7 +74,8 @@ export interface BoardAssignment {
   id: string;
   musicianId: string;
   musicianName: string;
-  musicianEmail: string | null;
+  /** Present only for callers holding roster.readContact. */
+  musicianEmail?: string | null;
   source: 'auto' | 'manual';
   locked: boolean;
   confirmation: 'pending' | 'accepted' | 'declined';
@@ -102,8 +137,9 @@ export interface Board {
 export interface Musician {
   id: string;
   name: string;
-  email: string;
-  phone: string | null;
+  /** Redacted server-side unless the caller holds roster.readContact. */
+  email?: string;
+  phone?: string | null;
   instruments: { instrumentId: string; rank: number }[];
   willingToDouble: boolean | null;
   experienceLevel: string | null;
@@ -161,9 +197,15 @@ export interface Usage {
 }
 
 export interface PlansResponse {
-  plans: { key: string; name: string; priceCents: number; interval: string; limits: Usage['limits'] }[];
+  plans: {
+    key: PlanKey;
+    name: string;
+    priceCents: number;
+    interval: BillingInterval;
+    limits: Usage['limits'];
+  }[];
   current: {
-    plan: string;
+    plan: PlanKey;
     status: string;
     trialEndsAt: string | null;
     trialExpired: boolean;
@@ -172,7 +214,83 @@ export interface PlansResponse {
   };
 }
 
+export interface RosterPart {
+  assignmentId: string;
+  partId: string;
+  instrumentId: string;
+  songTitle: string;
+  instrumentName: string;
+  partLabel: string;
+  difficulty: 'easier' | 'moderate' | 'challenging';
+  locked: boolean;
+  confirmation: 'pending' | 'accepted' | 'declined';
+}
+
+export interface RosterMusician {
+  id: string;
+  name: string;
+  sections: { instrumentId: string; instrumentName: string; rank: number }[];
+  parts: RosterPart[];
+  partCount: number;
+  willingToDouble: boolean | null;
+  experienceLevel: string | null;
+  difficultyPreference: string | null;
+  maxAssignments: number | null;
+  active: boolean;
+  email?: string;
+  phone?: string | null;
+}
+
+export interface Roster {
+  includesContact: boolean;
+  sectionScope: string[] | null;
+  instruments: Instrument[];
+  musicians: RosterMusician[];
+}
+
+export interface PlatformMetrics {
+  tenantsByStatus: Record<string, number>;
+  tenantsByPlan: Record<string, number>;
+  pendingVerification: number;
+  activeCodes: number;
+}
+
+export interface PlatformTenant {
+  id: string;
+  slug: string;
+  name: string;
+  contactEmail: string;
+  status: string;
+  plan: PlanKey;
+  interval: BillingInterval;
+  seats: number;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  pendingVerification: boolean;
+  createdAt: string;
+  discountCode: { code: string; label: string; category: string } | null;
+}
+
+export interface PlatformDiscountCode {
+  id: string;
+  code: string;
+  label: string;
+  category: string;
+  type: 'percent' | 'fixed';
+  value: number;
+  appliesToPlanKeys: PlanKey[];
+  maxRedemptions: number | null;
+  perTenantLimit: number;
+  redemptionCount: number;
+  requiresVerification: boolean;
+  validFrom: string | null;
+  validUntil: string | null;
+  active: boolean;
+}
+
 export interface Quote {
+  planKey: PaidPlanKey;
+  interval: BillingInterval;
   listPriceCents: number;
   discountCents: number;
   totalCents: number;
@@ -190,6 +308,23 @@ export interface MyParts {
     songTitle: string;
     instrumentName: string;
     partLabel: string;
+    difficulty: 'easier' | 'moderate' | 'challenging';
     confirmation: 'pending' | 'accepted' | 'declined';
+    respondedAt: string | null;
+    note: string | null;
   }[];
+}
+
+export interface MusicianProfile {
+  tenant: { name: string; slug: string };
+  musician: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    willingToDouble: boolean | null;
+    experienceLevel: string | null;
+    difficultyPreference: string | null;
+    instruments: { instrumentId: string; instrumentName: string; rank: number }[];
+  };
 }

@@ -8,7 +8,7 @@ import {
   seasonSchema,
   songSchema,
 } from '@score-assign/shared';
-import { requireAuth, requireRole, tenantContext } from '../middleware/context.js';
+import { can, requireAuth, requireCapability, tenantContext } from '../middleware/context.js';
 import { asyncRoute, badRequest, notFound } from '../middleware/errors.js';
 import { assertCapacity, currentUsage, effectiveLimits } from '../middleware/entitlements.js';
 
@@ -26,7 +26,7 @@ catalogRouter.get(
 
 catalogRouter.post(
   '/instruments',
-  requireRole('admin'),
+  requireCapability('program.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const name = String(req.body?.name ?? '').trim();
@@ -58,7 +58,7 @@ catalogRouter.get(
 
 catalogRouter.post(
   '/seasons',
-  requireRole('director'),
+  requireCapability('program.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const input = seasonSchema.parse(req.body);
@@ -91,7 +91,7 @@ catalogRouter.get(
 
 catalogRouter.post(
   '/seasons/:seasonId/songs',
-  requireRole('director'),
+  requireCapability('program.write'),
   asyncRoute(async (req: Request, res) => {
     const { tenant, db } = tenantContext(req);
     const input = songSchema.parse(req.body);
@@ -143,7 +143,7 @@ catalogRouter.get(
 
 catalogRouter.post(
   '/seasons/:seasonId/parts',
-  requireRole('director'),
+  requireCapability('program.write'),
   asyncRoute(async (req: Request, res) => {
     const { tenant, db } = tenantContext(req);
     const input = partSchema.parse(req.body);
@@ -170,7 +170,7 @@ catalogRouter.post(
 /** Creates parts 1..count for one instrument, how a score is normally entered. */
 catalogRouter.post(
   '/seasons/:seasonId/parts/bulk',
-  requireRole('director'),
+  requireCapability('program.write'),
   asyncRoute(async (req: Request, res) => {
     const { tenant, db } = tenantContext(req);
     const input = partsBulkSchema.parse(req.body);
@@ -198,7 +198,7 @@ catalogRouter.post(
 
 catalogRouter.delete(
   '/parts/:partId',
-  requireRole('director'),
+  requireCapability('program.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const part = await db.Part.findByIdAndDelete(req.params.partId);
@@ -210,15 +210,17 @@ catalogRouter.delete(
 
 catalogRouter.get(
   '/musicians',
+  requireCapability('roster.read'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
+    // Contact details are for admins and owners only.
+    const showContact = can(req, 'roster.readContact');
     const musicians = await db.Musician.find({}).sort({ name: 1 }).lean();
     res.json(
       musicians.map((m) => ({
         id: String(m._id),
         name: m.name,
-        email: m.email,
-        phone: m.phone,
+        ...(showContact ? { email: m.email, phone: m.phone } : {}),
         instruments: m.instruments,
         willingToDouble: m.willingToDouble,
         experienceLevel: m.experienceLevel,
@@ -233,7 +235,7 @@ catalogRouter.get(
 /** Manual entry for a musician who registered by phone or paper. */
 catalogRouter.post(
   '/musicians',
-  requireRole('director'),
+  requireCapability('roster.write'),
   asyncRoute(async (req: Request, res) => {
     const { tenant, db } = tenantContext(req);
     const input = musicianSchema.parse(req.body);
@@ -249,7 +251,7 @@ catalogRouter.post(
 
 catalogRouter.put(
   '/musicians/:id',
-  requireRole('director'),
+  requireCapability('roster.write'),
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
     const input = musicianSchema.parse(req.body);

@@ -1,19 +1,32 @@
 import { z } from 'zod';
 
-/** Roles a platform user can hold within a single tenant. */
-export const tenantRoles = ['owner', 'admin', 'director', 'viewer'] as const;
+/**
+ * Roles a platform user can hold within a single tenant. A section leader is a
+ * viewer scoped to their own instrument sections; see permissions.ts for what
+ * each role may actually do.
+ */
+export const tenantRoles = ['owner', 'admin', 'director', 'section_leader', 'viewer'] as const;
 export const tenantRoleSchema = z.enum(tenantRoles);
 export type TenantRole = z.infer<typeof tenantRoleSchema>;
 
-/** Ordered from least to most privileged; used for role comparisons. */
+/** Ordered from least to most privileged. Only for display ordering. */
 export const roleRank: Record<TenantRole, number> = {
   viewer: 0,
-  director: 1,
-  admin: 2,
-  owner: 3,
+  section_leader: 1,
+  director: 2,
+  admin: 3,
+  owner: 4,
 };
 
-export const planKeys = ['free', 'annual'] as const;
+export const roleLabels: Record<TenantRole, string> = {
+  viewer: 'Viewer',
+  section_leader: 'Section leader',
+  director: 'Director',
+  admin: 'Administrator',
+  owner: 'Owner',
+};
+
+export const planKeys = ['free', 'monthly', 'annual'] as const;
 export const planKeySchema = z.enum(planKeys);
 export type PlanKey = z.infer<typeof planKeySchema>;
 

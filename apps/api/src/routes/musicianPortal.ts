@@ -11,6 +11,7 @@ import { requireMusician, resolvePublicTenant, tenantContext } from '../middlewa
 import { asyncRoute, notFound, unauthorized } from '../middleware/errors.js';
 import { emailProvider, magicLinkEmail } from '../services/email.js';
 import { createOpaqueToken, hashToken, signMusicianToken } from '../services/tokens.js';
+import { tenantOrigin } from '../services/urls.js';
 
 const linkLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10 });
 
@@ -40,7 +41,7 @@ musicianAuthRouter.post(
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       });
       await emailProvider().send(
-        magicLinkEmail({ to: musician.email, tenantSlug: tenant.slug, token }),
+        magicLinkEmail({ to: musician.email, origin: tenantOrigin(req, tenant.slug), token }),
       );
     }
 
@@ -79,6 +80,42 @@ musicianAuthRouter.post(
 export const musicianPortalRouter = Router();
 musicianPortalRouter.use(requireMusician);
 
+/** A musician's own record. The only place contact details are ever returned. */
+musicianPortalRouter.get(
+  '/profile',
+  asyncRoute(async (req: Request, res) => {
+    const { tenant, db } = tenantContext(req);
+    const musicianId = new Types.ObjectId(req.musicianAuth!.musicianId);
+    const [musician, instruments] = await Promise.all([
+      db.Musician.findById(musicianId).lean(),
+      db.Instrument.find({}).lean(),
+    ]);
+    if (!musician) throw notFound('Musician not found');
+    const instrumentById = new Map(instruments.map((i) => [String(i._id), i]));
+
+    res.json({
+      tenant: { name: tenant.name, slug: tenant.slug },
+      musician: {
+        id: String(musician._id),
+        name: musician.name,
+        email: musician.email,
+        phone: musician.phone,
+        willingToDouble: musician.willingToDouble,
+        experienceLevel: musician.experienceLevel,
+        difficultyPreference: musician.difficultyPreference,
+        instruments: musician.instruments
+          .slice()
+          .sort((a, b) => a.rank - b.rank)
+          .map((pref) => ({
+            instrumentId: String(pref.instrumentId),
+            instrumentName: instrumentById.get(String(pref.instrumentId))?.name ?? 'Unknown',
+            rank: pref.rank,
+          })),
+      },
+    });
+  }),
+);
+
 musicianPortalRouter.get(
   '/my-parts',
   asyncRoute(async (req: Request, res) => {
@@ -112,7 +149,10 @@ musicianPortalRouter.get(
             songTitle: songById.get(String(part.songId))?.title ?? 'Unknown song',
             instrumentName: instrumentById.get(String(part.instrumentId))?.name ?? 'Unknown',
             partLabel: ordinalPartLabel(part.partNumber),
+            difficulty: part.difficulty,
             confirmation: a.confirmation.status,
+            respondedAt: a.confirmation.respondedAt,
+            note: a.confirmation.note,
           };
         })
         .filter((a): a is NonNullable<typeof a> => a !== null),
@@ -142,6 +182,10 @@ musicianPortalRouter.post(
       { new: true },
     );
     if (!assignment) throw notFound('Assignment not found');
-    res.json({ id: String(assignment._id), confirmation: assignment.confirmation.status });
+    res.json({
+      id: String(assignment._id),
+      confirmation: assignment.confirmation.status,
+      note: assignment.confirmation.note,
+    });
   }),
 );

@@ -8,6 +8,7 @@ import {
   tenantRoleSchema,
 } from './domain.js';
 import { instrumentPreferenceSchema } from './intake.js';
+import { paidPlanKeys } from './billing.js';
 
 const passwordSchema = z
   .string()
@@ -35,6 +36,13 @@ export const loginSchema = z.object({
 export const inviteSchema = z.object({
   email: emailSchema,
   role: tenantRoleSchema,
+  /** Only meaningful for section leaders; empty means the whole ensemble. */
+  sectionInstrumentIds: z.array(z.string().min(1)).default([]),
+});
+
+export const memberRoleSchema = z.object({
+  role: tenantRoleSchema,
+  sectionInstrumentIds: z.array(z.string().min(1)).default([]),
 });
 
 export const acceptInviteSchema = z.object({
@@ -117,7 +125,17 @@ export const createAssignmentSchema = z.object({
 });
 
 export const checkoutSchema = z.object({
-  planKey: z.literal('annual'),
+  planKey: z.enum(paidPlanKeys),
+  discountCode: z.string().trim().toUpperCase().max(32).optional(),
+});
+
+export const verifyDiscountSchema = z.object({
+  decision: z.enum(['approve', 'reject']).default('approve'),
+  note: z.string().max(500).optional(),
+});
+
+export const quoteRequestSchema = z.object({
+  planKey: z.enum(paidPlanKeys).default('annual'),
   discountCode: z.string().trim().toUpperCase().max(32).optional(),
 });
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { planKeySchema } from './domain.js';
+import { planKeySchema, type PlanKey } from './domain.js';
 
 /** Caps enforced by the entitlements middleware on every create/import. */
 export interface PlanLimits {
@@ -26,7 +26,8 @@ export const freeLimits: PlanLimits = {
   maxSeats: 1,
 };
 
-export const annualLimits: PlanLimits = {
+/** Monthly and annual buy the same product; only the cadence differs. */
+export const paidLimits: PlanLimits = {
   maxParts: UNLIMITED,
   maxMusicians: UNLIMITED,
   maxSongs: UNLIMITED,
@@ -34,7 +35,33 @@ export const annualLimits: PlanLimits = {
 };
 
 export const ANNUAL_PRICE_CENTS = 9600;
+export const MONTHLY_PRICE_CENTS = 1200;
 export const TRIAL_DAYS = 7;
+
+export const billingIntervals = ['month', 'year'] as const;
+export const billingIntervalSchema = z.enum(billingIntervals);
+export type BillingInterval = z.infer<typeof billingIntervalSchema>;
+
+export const planIntervals: Record<PlanKey, BillingInterval> = {
+  free: 'year',
+  monthly: 'month',
+  annual: 'year',
+};
+
+export const paidPlanKeys = ['monthly', 'annual'] as const;
+export type PaidPlanKey = (typeof paidPlanKeys)[number];
+
+export function isPaidPlanKey(key: string): key is PaidPlanKey {
+  return (paidPlanKeys as readonly string[]).includes(key);
+}
+
+/** The end of the period a plan buys, from a given start. */
+export function periodEndFor(planKey: PaidPlanKey, from: Date = new Date()): Date {
+  const end = new Date(from);
+  if (planKey === 'monthly') end.setMonth(end.getMonth() + 1);
+  else end.setFullYear(end.getFullYear() + 1);
+  return end;
+}
 
 export const planCatalog = [
   {
@@ -45,11 +72,18 @@ export const planCatalog = [
     limits: freeLimits,
   },
   {
+    key: 'monthly' as const,
+    name: 'Monthly',
+    priceCents: MONTHLY_PRICE_CENTS,
+    interval: 'month' as const,
+    limits: paidLimits,
+  },
+  {
     key: 'annual' as const,
     name: 'Annual',
     priceCents: ANNUAL_PRICE_CENTS,
     interval: 'year' as const,
-    limits: annualLimits,
+    limits: paidLimits,
   },
 ];
 
@@ -74,7 +108,7 @@ export const discountCodeFieldsSchema = z.object({
   type: discountTypeSchema,
   /** Percent (1-100) when type is percent, otherwise cents off. */
   value: z.number().int().min(1),
-  appliesToPlanKeys: z.array(planKeySchema).default(['annual']),
+  appliesToPlanKeys: z.array(planKeySchema).default(['monthly', 'annual']),
   maxRedemptions: z.number().int().min(1).nullable().default(null),
   perTenantLimit: z.number().int().min(1).default(1),
   /** Student / teacher / 501c3 status must be reviewed before it applies. */
@@ -105,7 +139,7 @@ export const seedDiscountCodes: DiscountCodeInput[] = [
     category: 'student',
     type: 'percent',
     value: 30,
-    appliesToPlanKeys: ['annual'],
+    appliesToPlanKeys: ['monthly', 'annual'],
     maxRedemptions: null,
     perTenantLimit: 1,
     requiresVerification: true,
@@ -119,7 +153,7 @@ export const seedDiscountCodes: DiscountCodeInput[] = [
     category: 'teacher',
     type: 'percent',
     value: 40,
-    appliesToPlanKeys: ['annual'],
+    appliesToPlanKeys: ['monthly', 'annual'],
     maxRedemptions: null,
     perTenantLimit: 1,
     requiresVerification: true,
@@ -133,7 +167,7 @@ export const seedDiscountCodes: DiscountCodeInput[] = [
     category: 'nonprofit',
     type: 'percent',
     value: 50,
-    appliesToPlanKeys: ['annual'],
+    appliesToPlanKeys: ['monthly', 'annual'],
     maxRedemptions: null,
     perTenantLimit: 1,
     requiresVerification: true,
@@ -144,7 +178,8 @@ export const seedDiscountCodes: DiscountCodeInput[] = [
 ];
 
 export interface PriceQuote {
-  planKey: 'free' | 'annual';
+  planKey: PlanKey;
+  interval: BillingInterval;
   listPriceCents: number;
   discountCents: number;
   totalCents: number;
@@ -154,16 +189,13 @@ export interface PriceQuote {
 
 /** Never lets a discount push the total below zero. */
 export function quotePrice(
+  planKey: PaidPlanKey,
   listPriceCents: number,
   discount?: { code: string; label: string; type: 'percent' | 'fixed'; value: number } | null,
 ): PriceQuote {
+  const base = { planKey, interval: planIntervals[planKey], listPriceCents };
   if (!discount) {
-    return {
-      planKey: 'annual',
-      listPriceCents,
-      discountCents: 0,
-      totalCents: listPriceCents,
-    };
+    return { ...base, discountCents: 0, totalCents: listPriceCents };
   }
   const raw =
     discount.type === 'percent'
@@ -171,8 +203,7 @@ export function quotePrice(
       : discount.value;
   const discountCents = Math.min(raw, listPriceCents);
   return {
-    planKey: 'annual',
-    listPriceCents,
+    ...base,
     discountCents,
     totalCents: listPriceCents - discountCents,
     code: discount.code,

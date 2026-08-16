@@ -68,13 +68,16 @@ always allowed — the director gets a warning, not a veto.
 
 ## Plans
 
-| | Free | Annual |
-| --- | --- | --- |
-| Price | $0 | $96/year |
-| Parts | 3 | unlimited |
-| Musicians | 10 | unlimited |
+| | Free | Monthly | Annual |
+| --- | --- | --- | --- |
+| Price | $0 | $12/month | $96/year |
+| Parts | 3 | unlimited | unlimited |
+| Musicians | 10 | unlimited | unlimited |
 
-Every workspace starts with a 7 day trial that has annual limits. When the
+Both paid prices are configurable per environment (`MONTHLY_PRICE_CENTS`,
+`ANNUAL_PRICE_CENTS`) and are written onto the plan documents at boot.
+
+Every workspace starts with a 7 day trial that has paid limits. When the
 trial lapses the tenant falls back to free limits — existing data is never
 deleted, only further additions are blocked (HTTP 402 with
 `plan_limit_reached`).
@@ -88,9 +91,29 @@ review before it applies:
 | `TEACHER40` | 40% |
 | `NONPROFIT50` | 50% |
 
+Each code applies to both the monthly and annual plans.
+
 **Billing is a stub.** `StubBillingProvider` prices the order and activates the
 plan without contacting a payment provider. Implement `BillingProvider` to go
 live.
+
+## Roles
+
+Authorization is a capability table (`packages/shared/src/permissions.ts`), not
+a role rank, so a new role is one row rather than an audit of every route.
+
+| Role | Can |
+| --- | --- |
+| `viewer` | read the roster |
+| `section_leader` | read the roster, limited to the sections they lead |
+| `director` | the program, assignment runs, manual moves, part emails, form editing |
+| `admin` | the above plus contact details, raw form responses and team management |
+| `owner` | the above plus billing |
+
+Contact details (email and phone) are released only to `roster.readContact`
+holders — admins and owners. The redaction happens in the API, so a director's
+browser never receives an address. A musician always sees their own details at
+`/musician/profile`.
 
 ## Local development
 
