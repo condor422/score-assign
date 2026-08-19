@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '../lib/api';
 import { useSession } from '../auth/SessionContext';
+import { BrandMark } from '../components/BrandMark';
+import { HelpTip } from '../components/HelpTip';
 import type { PlatformDiscountCode, PlatformMetrics, PlatformTenant } from '../lib/types';
 
 const money = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
@@ -11,8 +13,8 @@ const date = (value: string | null): string =>
 
 /**
  * Platform staff console: subscription state across tenants, the discount
- * verification queue, and the discount catalogue. Read-only apart from
- * resolving verification claims and toggling codes.
+ * verification queue, and the discount catalogue. Writes are limited to
+ * resolving verification claims, toggling codes and suspending a workspace.
  */
 export function PlatformConsolePage(): JSX.Element {
   const queryClient = useQueryClient();
@@ -62,15 +64,46 @@ export function PlatformConsolePage(): JSX.Element {
       setError(caught instanceof ApiError ? caught.message : 'Could not update that code'),
   });
 
+  const setTenantStatus = useMutation({
+    mutationFn: (input: { tenantId: string; action: 'suspend' | 'restore'; reason?: string }) =>
+      api(`/admin/tenants/${input.tenantId}/status`, {
+        method: 'POST',
+        body: { action: input.action, ...(input.reason ? { reason: input.reason } : {}) },
+      }),
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+      void queryClient.invalidateQueries({ queryKey: ['platform-metrics'] });
+    },
+    onError: (caught) =>
+      setError(caught instanceof ApiError ? caught.message : 'Could not change that workspace'),
+  });
+
+  function changeStatus(tenant: PlatformTenant): void {
+    if (tenant.status === 'suspended') {
+      if (!window.confirm(`Restore ${tenant.name} to its previous status?`)) return;
+      setTenantStatus.mutate({ tenantId: tenant.id, action: 'restore' });
+      return;
+    }
+    const reason = window.prompt(
+      `Suspend ${tenant.name}? It becomes read-only and stops accepting registrations.\n\nReason (optional):`,
+    );
+    if (reason === null) return;
+    setTenantStatus.mutate({ tenantId: tenant.id, action: 'suspend', reason: reason.trim() });
+  }
+
   const pending = (tenants.data ?? []).filter((tenant) => tenant.pendingVerification);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-surface">
+      <header className="border-b border-maroon-100 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold">ScoreAssign platform</p>
-            <p className="text-xs text-slate-500">{session?.user.email} · platform staff</p>
+          <div className="flex items-center gap-3">
+            <BrandMark />
+            <div>
+              <p className="text-sm font-semibold text-maroon-900">ScoreAssign platform</p>
+              <p className="text-xs text-slate-500">{session?.user.email} · platform staff</p>
+            </div>
           </div>
           <Link className="btn-secondary" to="/">
             Back to {session?.tenant.name}
@@ -112,7 +145,10 @@ export function PlatformConsolePage(): JSX.Element {
 
         {pending.length ? (
           <div className="card space-y-2">
-            <h2 className="text-sm font-semibold">Discount verification queue</h2>
+            <h2 className="flex items-center gap-1 text-sm font-semibold">
+              Discount verification queue
+              <HelpTip topic="discountVerification" />
+            </h2>
             <p className="hint">
               These tenants claimed a code that requires proof (student ID, teaching post or
               501(c)(3) letter). Rejecting also removes the code from the tenant.
@@ -155,7 +191,10 @@ export function PlatformConsolePage(): JSX.Element {
 
         <div className="card space-y-3">
           <div className="flex items-end justify-between gap-3">
-            <h2 className="text-sm font-semibold">Tenants</h2>
+            <h2 className="flex items-center gap-1 text-sm font-semibold">
+              Tenants
+              <HelpTip topic="suspendTenant" />
+            </h2>
             <div>
               <label className="label" htmlFor="tenant-status">
                 Status
@@ -170,6 +209,7 @@ export function PlatformConsolePage(): JSX.Element {
                 <option value="trialing">Trialing</option>
                 <option value="active">Active</option>
                 <option value="past_due">Past due</option>
+                <option value="suspended">Suspended</option>
                 <option value="canceled">Canceled</option>
               </select>
             </div>
@@ -185,6 +225,7 @@ export function PlatformConsolePage(): JSX.Element {
                   <th className="py-2">Trial ends</th>
                   <th className="py-2">Renews</th>
                   <th className="py-2">Discount</th>
+                  <th className="py-2">Access</th>
                 </tr>
               </thead>
               <tbody>
@@ -196,7 +237,15 @@ export function PlatformConsolePage(): JSX.Element {
                         {tenant.slug} · {tenant.contactEmail}
                       </span>
                     </td>
-                    <td className="py-2">{tenant.status}</td>
+                    <td className="py-2">
+                      {tenant.status}
+                      {tenant.status === 'suspended' ? (
+                        <span className="hint block">
+                          since {date(tenant.suspendedAt)}
+                          {tenant.suspensionReason ? ` · ${tenant.suspensionReason}` : ''}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="py-2">
                       {tenant.plan}
                       {tenant.plan === 'free' ? '' : ` / ${tenant.interval}`}
@@ -207,14 +256,24 @@ export function PlatformConsolePage(): JSX.Element {
                     <td className="py-2">
                       {tenant.discountCode ? tenant.discountCode.code : '—'}
                       {tenant.pendingVerification ? (
-                        <span className="badge ml-1 bg-amber-100 text-amber-800">unverified</span>
+                        <span className="badge ml-1 bg-gold-100 text-gold-800">unverified</span>
                       ) : null}
+                    </td>
+                    <td className="py-2">
+                      <button
+                        className={tenant.status === 'suspended' ? 'btn-secondary' : 'btn-danger'}
+                        type="button"
+                        disabled={setTenantStatus.isPending}
+                        onClick={() => changeStatus(tenant)}
+                      >
+                        {tenant.status === 'suspended' ? 'Restore' : 'Suspend'}
+                      </button>
                     </td>
                   </tr>
                 ))}
                 {tenants.data?.length === 0 ? (
                   <tr>
-                    <td className="py-3 text-slate-500" colSpan={7}>
+                    <td className="py-3 text-slate-500" colSpan={8}>
                       No tenants match that filter.
                     </td>
                   </tr>
@@ -225,7 +284,10 @@ export function PlatformConsolePage(): JSX.Element {
         </div>
 
         <div className="card space-y-3">
-          <h2 className="text-sm font-semibold">Discount codes</h2>
+          <h2 className="flex items-center gap-1 text-sm font-semibold">
+            Discount codes
+            <HelpTip topic="discountCode" />
+          </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-slate-500">

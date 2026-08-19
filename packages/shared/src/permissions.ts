@@ -29,6 +29,8 @@ export const capabilities = [
   'billing.manage',
   /** Invite teammates and change their roles. */
   'team.manage',
+  /** Configure the tenant: instruments, musician records, organisation profile. */
+  'settings.manage',
 ] as const;
 export const capabilitySchema = z.enum(capabilities);
 export type Capability = z.infer<typeof capabilitySchema>;
@@ -42,8 +44,13 @@ const viewer: Capability[] = ['roster.read'];
  */
 const sectionLeader: Capability[] = [...viewer];
 
+/**
+ * Directors run rehearsals, so they get contact details along with the roster;
+ * section leaders and viewers see names only, enforced server-side.
+ */
 const director: Capability[] = [
   ...viewer,
+  'roster.readContact',
   'program.write',
   'assignment.run',
   'assignment.write',
@@ -52,12 +59,12 @@ const director: Capability[] = [
   'roster.write',
 ];
 
-/**
- * Contact details stop here. A director never needs an address to do their job
- * because part emails are rendered and sent server-side, so the values never
- * reach a director's browser.
- */
-const admin: Capability[] = [...director, 'roster.readContact', 'form.readResponses', 'team.manage'];
+const admin: Capability[] = [
+  ...director,
+  'form.readResponses',
+  'team.manage',
+  'settings.manage',
+];
 
 const owner: Capability[] = [...admin, 'billing.manage'];
 

@@ -87,12 +87,18 @@ afterAll(async () => {
 });
 
 describe('capability table', () => {
-  it('withholds contact details from every role below administrator', () => {
+  it('withholds contact details from viewers and section leaders only', () => {
     expect(roleHasCapability('viewer', 'roster.readContact')).toBe(false);
     expect(roleHasCapability('section_leader', 'roster.readContact')).toBe(false);
-    expect(roleHasCapability('director', 'roster.readContact')).toBe(false);
+    expect(roleHasCapability('director', 'roster.readContact')).toBe(true);
     expect(roleHasCapability('admin', 'roster.readContact')).toBe(true);
     expect(roleHasCapability('owner', 'roster.readContact')).toBe(true);
+  });
+
+  it('reserves workspace configuration for owners and administrators', () => {
+    expect(roleHasCapability('director', 'settings.manage')).toBe(false);
+    expect(roleHasCapability('admin', 'settings.manage')).toBe(true);
+    expect(roleHasCapability('owner', 'settings.manage')).toBe(true);
   });
 
   it('lets directors run the program but not manage the team or billing', () => {
@@ -121,7 +127,7 @@ describe('capability table', () => {
 });
 
 describe('roster redaction', () => {
-  it('sends contact details to an admin and withholds them from a director', async () => {
+  it('sends contact details to a director and withholds them from a viewer', async () => {
     const owner = await signup('redact-co', 'Redact Co');
     const instruments = await request(app).get('/api/v1/instruments').set(auth(owner)).expect(200);
     const flute = instruments.body.find((i: { name: string }) => i.name === 'C Flute').id;
@@ -136,21 +142,21 @@ describe('roster redaction', () => {
       })
       .expect(201);
 
-    const admin = await addTeammate('redact-co', 'admin@redact-co.example.org', 'admin');
     const director = await addTeammate('redact-co', 'director@redact-co.example.org', 'director');
-
-    const asAdmin = await request(app).get('/api/v1/roster').set(auth(admin)).expect(200);
-    expect(asAdmin.body.includesContact).toBe(true);
-    expect(asAdmin.body.musicians[0].email).toBe('private.player@example.org');
-    expect(asAdmin.body.musicians[0].phone).toBe('602-555-0100');
+    const viewer = await addTeammate('redact-co', 'viewer@redact-co.example.org', 'viewer');
 
     const asDirector = await request(app).get('/api/v1/roster').set(auth(director)).expect(200);
-    expect(asDirector.body.includesContact).toBe(false);
-    expect(asDirector.body.musicians[0].name).toBe('Private Player');
-    expect(asDirector.body.musicians[0].email).toBeUndefined();
-    expect(asDirector.body.musicians[0].phone).toBeUndefined();
+    expect(asDirector.body.includesContact).toBe(true);
+    expect(asDirector.body.musicians[0].email).toBe('private.player@example.org');
+    expect(asDirector.body.musicians[0].phone).toBe('602-555-0100');
+
+    const asViewer = await request(app).get('/api/v1/roster').set(auth(viewer)).expect(200);
+    expect(asViewer.body.includesContact).toBe(false);
+    expect(asViewer.body.musicians[0].name).toBe('Private Player');
+    expect(asViewer.body.musicians[0].email).toBeUndefined();
+    expect(asViewer.body.musicians[0].phone).toBeUndefined();
     // The redaction is server-side: the address is absent from the payload itself.
-    expect(JSON.stringify(asDirector.body)).not.toContain('private.player@example.org');
+    expect(JSON.stringify(asViewer.body)).not.toContain('private.player@example.org');
   });
 
   it('strips contact details from the musicians list and the board', async () => {
@@ -184,14 +190,14 @@ describe('roster redaction', () => {
       .send({})
       .expect(201);
 
-    const director = await addTeammate('board-redact', 'director@board-redact.example.org', 'director');
+    const viewer = await addTeammate('board-redact', 'viewer@board-redact.example.org', 'viewer');
 
-    const musicians = await request(app).get('/api/v1/musicians').set(auth(director)).expect(200);
+    const musicians = await request(app).get('/api/v1/musicians').set(auth(viewer)).expect(200);
     expect(musicians.body[0].email).toBeUndefined();
 
     const board = await request(app)
       .get(`/api/v1/seasons/${seasonId}/board`)
-      .set(auth(director))
+      .set(auth(viewer))
       .expect(200);
     expect(board.body.parts[0].assignments[0].musicianName).toBe('Board Player');
     expect(board.body.parts[0].assignments[0].musicianEmail).toBeUndefined();

@@ -21,8 +21,46 @@ class LogEmailProvider implements EmailProvider {
   }
 }
 
+/**
+ * Talks to SendGrid's v3 REST API directly rather than through their SDK: one
+ * POST is all this needs, and it keeps a dependency out of the tree.
+ */
+class SendGridEmailProvider implements EmailProvider {
+  readonly name = 'sendgrid';
+
+  async send(message: EmailMessage): Promise<void> {
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${config.SENDGRID_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: message.to }] }],
+        from: { email: config.EMAIL_FROM, name: config.EMAIL_FROM_NAME },
+        subject: message.subject,
+        content: [{ type: 'text/plain', value: message.text }],
+      }),
+    });
+
+    if (!response.ok) {
+      // The body carries SendGrid's reason; the address is deliberately not logged.
+      const detail = await response.text().catch(() => '');
+      logger.error({ status: response.status, detail }, 'sendgrid rejected a message');
+      throw new Error(`SendGrid responded ${response.status}`);
+    }
+  }
+}
+
+let provider: EmailProvider | null = null;
+
 export function emailProvider(): EmailProvider {
-  return new LogEmailProvider();
+  if (!provider) {
+    provider =
+      config.EMAIL_PROVIDER === 'sendgrid' ? new SendGridEmailProvider() : new LogEmailProvider();
+    logger.info({ provider: provider.name }, 'email provider selected');
+  }
+  return provider;
 }
 
 export function magicLinkEmail(params: {

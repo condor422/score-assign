@@ -7,7 +7,12 @@ import {
   musicianTokenSchema,
   ordinalPartLabel,
 } from '@score-assign/shared';
-import { requireMusician, resolvePublicTenant, tenantContext } from '../middleware/context.js';
+import {
+  assertNotSuspended,
+  requireMusician,
+  resolvePublicTenant,
+  tenantContext,
+} from '../middleware/context.js';
 import { asyncRoute, notFound, unauthorized } from '../middleware/errors.js';
 import { emailProvider, magicLinkEmail } from '../services/email.js';
 import { createOpaqueToken, hashToken, signMusicianToken } from '../services/tokens.js';
@@ -164,6 +169,7 @@ musicianPortalRouter.post(
   '/confirm',
   asyncRoute(async (req: Request, res) => {
     const { db } = tenantContext(req);
+    assertNotSuspended(req);
     const input = confirmAssignmentSchema.parse(req.body);
     const musicianId = new Types.ObjectId(req.musicianAuth!.musicianId);
 

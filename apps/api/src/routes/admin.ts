@@ -4,12 +4,13 @@ import {
   discountCodeInputSchema,
   discountCodePatchSchema,
   planIntervals,
+  tenantStatusActionSchema,
   verifyDiscountSchema,
 } from '@score-assign/shared';
 import { getBaseConnection } from '../db/connection.js';
 import { platformModels } from '../models/platform.js';
 import { requireAuth, requirePlatformAdmin } from '../middleware/context.js';
-import { asyncRoute, notFound } from '../middleware/errors.js';
+import { asyncRoute, badRequest, notFound } from '../middleware/errors.js';
 import { recordAudit } from '../services/audit.js';
 
 /**
@@ -99,6 +100,8 @@ adminRouter.get(
           name: t.name,
           contactEmail: t.contactEmail,
           status: t.status,
+          suspendedAt: t.suspendedAt,
+          suspensionReason: t.suspensionReason,
           plan: t.plan,
           interval: planIntervals[t.plan],
           seats: seatsByTenant.get(String(t._id)) ?? 0,
@@ -136,6 +139,49 @@ adminRouter.get(
       pendingVerification,
       activeCodes,
     });
+  }),
+);
+
+/**
+ * Suspension freezes a workspace instead of locking it out: staff keep read
+ * access so they can retrieve their roster, and every write is refused until a
+ * platform admin restores them. Restoring returns the status held before the
+ * suspension rather than assuming 'active'.
+ */
+adminRouter.post(
+  '/tenants/:id/status',
+  asyncRoute(async (req: Request, res) => {
+    const input = tenantStatusActionSchema.parse(req.body ?? {});
+    const { Tenant } = platformModels(getBaseConnection());
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) throw notFound('Tenant not found');
+
+    if (input.action === 'suspend') {
+      if (tenant.status === 'suspended') throw badRequest('That workspace is already suspended');
+      tenant.statusBeforeSuspension = tenant.status;
+      tenant.status = 'suspended';
+      tenant.suspendedAt = new Date();
+      tenant.suspensionReason = input.reason ?? null;
+    } else {
+      if (tenant.status !== 'suspended') throw badRequest('That workspace is not suspended');
+      tenant.status = tenant.statusBeforeSuspension ?? 'active';
+      tenant.statusBeforeSuspension = null;
+      tenant.suspendedAt = null;
+      tenant.suspensionReason = null;
+    }
+    await tenant.save();
+
+    await recordAudit({
+      tenantId: tenant._id,
+      actorUserId: new Types.ObjectId(req.auth!.sub),
+      action: `tenant.${input.action}`,
+      targetType: 'tenant',
+      targetId: String(tenant._id),
+      meta: { reason: input.reason ?? null, status: tenant.status },
+      ip: req.ip ?? null,
+    });
+
+    res.json({ id: String(tenant._id), status: tenant.status });
   }),
 );
 

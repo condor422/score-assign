@@ -106,14 +106,27 @@ a role rank, so a new role is one row rather than an audit of every route.
 | --- | --- |
 | `viewer` | read the roster |
 | `section_leader` | read the roster, limited to the sections they lead |
-| `director` | the program, assignment runs, manual moves, part emails, form editing |
-| `admin` | the above plus contact details, raw form responses and team management |
+| `director` | the program, assignment runs, manual moves, part emails, form editing, contact details |
+| `admin` | the above plus workspace configuration, raw form responses and team management |
 | `owner` | the above plus billing |
 
 Contact details (email and phone) are released only to `roster.readContact`
-holders — admins and owners. The redaction happens in the API, so a director's
-browser never receives an address. A musician always sees their own details at
-`/musician/profile`.
+holders — directors, admins and owners. The redaction happens in the API, so a
+viewer's browser never receives an address. A musician always sees their own
+details at `/musician/profile`.
+
+Workspace configuration — instruments, editing existing musician records, the
+organisation profile — is `settings.manage`, held by owners and admins only, and
+lives under the **Admin** tab. Directors can still *add* a musician who
+registered on paper.
+
+ScoreAssign staff hold `isPlatformAdmin` on the account rather than a role in any
+workspace, and can suspend or restore a tenant from `/platform`. A suspended
+workspace stays readable, refuses every write, and closes public registration
+until it is restored.
+
+How the app distinguishes a director from a musician at sign-in is written up in
+[docs/SIGN_IN.md](docs/SIGN_IN.md).
 
 ## Local development
 
@@ -176,8 +189,30 @@ manual moves, plan limits, discount pricing and the musician portal.
 | `POST` | `/api/v1/billing/quote` · `/checkout` | pricing and (stubbed) checkout |
 | `POST` | `/api/v1/musician-auth/request-link` · `/verify` | musician sign-in |
 | `GET`/`POST` | `/api/v1/musician/my-parts` · `/confirm` | view and confirm parts |
+| `GET`/`POST` | `/api/v1/instruments` · `PATCH /:id` · `POST /reorder` | configure the instrument list |
+| `POST`/`PUT` | `/api/v1/musicians` · `/musicians/:id` | add (director) and edit (admin) a musician |
+| `GET`/`PATCH` | `/api/v1/organization` | workspace name, contact, timezone |
+| `GET` | `/api/v1/admin/metrics` · `/admin/tenants` | platform console (staff only) |
+| `POST` | `/api/v1/admin/tenants/:id/status` | suspend or restore a tenant |
+
+## Documentation
+
+| Document | For |
+| --- | --- |
+| [Director's guide](docs/GUIDE_DIRECTOR.md) | running a season: intake, program, assignment, emails |
+| [Musician's guide](docs/GUIDE_MUSICIAN.md) | registering, ranking instruments, confirming parts |
+| [Admin guide](docs/GUIDE_ADMIN.md) | instruments, musician records, team, organisation settings |
+| [Platform console](docs/GUIDE_PLATFORM.md) | ScoreAssign staff: tenants, discounts, suspend/restore |
+| [Sign-in model](docs/SIGN_IN.md) | how staff and musician identities differ |
+| [Brand](docs/BRAND.md) | logo, palette hex values, downloadable swatch sheet |
+| [GCP deployment](docs/DEPLOY_GCP.md) | Cloud Run, Atlas, Secret Manager, Terraform, wildcard DNS |
+
+In-app help sits behind the **?** buttons beside field labels — the same copy,
+where the decision is being made.
 
 ## Deployment
 
-See [deploy/README.md](deploy/README.md) — Cloud Run for both services, Secret
-Manager for credentials, and a wildcard certificate for `*.scoreassign.com`.
+[docs/DEPLOY_GCP.md](docs/DEPLOY_GCP.md) is the full walkthrough for project
+`scoreassign`; `deploy/terraform` is the infrastructure, `deploy/cloudbuild.yaml`
+builds and pushes the images, and [deploy/README.md](deploy/README.md) covers the
+equivalent by hand with `gcloud`.

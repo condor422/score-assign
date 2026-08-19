@@ -13,6 +13,8 @@ import { ensurePlatformCatalog, provisionTenant } from './services/provisioning.
 import { logger } from './logger.js';
 
 const DEMO_SLUG = 'afs';
+/** Second workspace so suspend/restore can be tried without freezing the demo. */
+const OTHER_SLUG = 'sonoran';
 const DEMO_EMAIL = 'director@example.org';
 const DEMO_PASSWORD = 'DemoDirector1';
 const STAFF_PASSWORD = 'DemoStaff1';
@@ -44,15 +46,16 @@ async function main(): Promise<void> {
 
   const { Tenant, PlatformUser } = platformModels(getBaseConnection());
 
-  const stale = await Tenant.findOne({ slug: DEMO_SLUG });
-  if (stale) {
+  for (const slug of [DEMO_SLUG, OTHER_SLUG]) {
+    const stale = await Tenant.findOne({ slug });
+    if (!stale) continue;
     await getBaseConnection().useDb(stale.dbName, { useCache: true }).dropDatabase();
     await Tenant.deleteOne({ _id: stale._id });
-    await PlatformUser.deleteMany({
-      email: { $in: [DEMO_EMAIL, ...demoStaff.map((s) => s.email)] },
-    });
-    logger.info('removed previous demo tenant');
+    logger.info({ slug }, 'removed previous demo tenant');
   }
+  await PlatformUser.deleteMany({
+    email: { $in: [DEMO_EMAIL, ...demoStaff.map((s) => s.email)] },
+  });
 
   const { tenant } = await provisionTenant({
     name: 'Arizona Flute Society',
@@ -72,6 +75,13 @@ async function main(): Promise<void> {
     passwordHash: await argon2.hash(DEMO_PASSWORD, { type: argon2.argon2id }),
     memberships: [{ tenantId: tenant._id, role: 'owner', sectionInstrumentIds: [] }],
     isPlatformAdmin: true,
+  });
+
+  // A trialing second tenant gives the platform console something to suspend.
+  await provisionTenant({
+    name: 'Sonoran Flute Collective',
+    slug: OTHER_SLUG,
+    contactEmail: 'hello@sonoran.example.org',
   });
 
   const models = getTenantModels(tenant.dbName);
@@ -163,6 +173,8 @@ async function main(): Promise<void> {
       password: DEMO_PASSWORD,
       staffLogins: demoStaff.map((s) => `${s.email} (${s.role})`),
       staffPassword: STAFF_PASSWORD,
+      platformConsole: `${DEMO_EMAIL} is flagged isPlatformAdmin; console is at /platform`,
+      secondTenant: OTHER_SLUG,
       formUrl: `http://${DEMO_SLUG}.localhost:5173/register/registration`,
       parts: parts.length,
       musicians: demoMusicians.length,

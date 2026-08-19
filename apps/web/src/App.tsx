@@ -12,6 +12,10 @@ import { RosterPage } from './pages/RosterPage';
 import { TeamPage } from './pages/TeamPage';
 import { AssignmentBoardPage } from './pages/AssignmentBoardPage';
 import { FormBuilderPage } from './pages/FormBuilderPage';
+import { AdminIndexRedirect, AdminPage } from './pages/AdminPage';
+import { InstrumentsTab } from './pages/admin/InstrumentsTab';
+import { MusicianRecordsTab } from './pages/admin/MusicianRecordsTab';
+import { OrganizationTab } from './pages/admin/OrganizationTab';
 import { BillingPage } from './pages/BillingPage';
 import { PlatformConsolePage } from './pages/PlatformConsolePage';
 import { PublicIntakePage } from './pages/PublicIntakePage';
@@ -55,8 +59,17 @@ export function App(): JSX.Element {
             <Route path="program" element={<ProgramPage />} />
             <Route path="musicians" element={<MusiciansPage />} />
             <Route path="assignments" element={<AssignmentBoardPage />} />
-            <Route path="form" element={<FormBuilderPage />} />
-            <Route path="team" element={<TeamPage />} />
+            {/* Configuration is grouped under Admin; the old paths still resolve. */}
+            <Route path="admin" element={<AdminPage />}>
+              <Route index element={<AdminIndexRedirect />} />
+              <Route path="instruments" element={<InstrumentsTab />} />
+              <Route path="musicians" element={<MusicianRecordsTab />} />
+              <Route path="form" element={<FormBuilderPage />} />
+              <Route path="team" element={<TeamPage />} />
+              <Route path="organization" element={<OrganizationTab />} />
+            </Route>
+            <Route path="form" element={<Navigate to="/admin/form" replace />} />
+            <Route path="team" element={<Navigate to="/admin/team" replace />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

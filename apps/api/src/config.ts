@@ -20,8 +20,10 @@ const schema = z.object({
   ANNUAL_PRICE_CENTS: z.coerce.number().int().default(9600),
   MONTHLY_PRICE_CENTS: z.coerce.number().int().default(1200),
   TRIAL_DAYS: z.coerce.number().int().default(7),
-  EMAIL_PROVIDER: z.enum(['log']).default('log'),
+  EMAIL_PROVIDER: z.enum(['log', 'sendgrid']).default('log'),
   EMAIL_FROM: z.string().default('no-reply@scoreassign.com'),
+  EMAIL_FROM_NAME: z.string().default('ScoreAssign'),
+  SENDGRID_API_KEY: z.string().default(''),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -52,6 +54,14 @@ if (config.isProduction) {
       throw new Error(`${key} must be set to a real secret in production`);
     }
   }
+}
+
+/**
+ * Selecting SendGrid without a key would silently swallow every magic link, so
+ * the mistake surfaces at boot rather than when a musician tries to sign in.
+ */
+if (config.EMAIL_PROVIDER === 'sendgrid' && !config.SENDGRID_API_KEY) {
+  throw new Error('SENDGRID_API_KEY is required when EMAIL_PROVIDER=sendgrid');
 }
 
 export type Config = typeof config;

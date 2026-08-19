@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="922" viewBox="0 0 1260 922" font-family="Inter, Segoe UI, sans-serif">
+  <rect width="1260" height="922" fill="#FAF7F2" />
+  <rect x="0" y="0" width="1260" height="104" fill="#3A0304" />
+  <text x="40" y="52" font-size="28" font-weight="700" fill="#E8C868">ScoreAssign brand palette</text>
+  <text x="40" y="80" font-size="14" fill="#F7EBCF">Gold on maroon, sampled from the ScoreAssign logo. Hex values match apps/web/tailwind.config.js.</text>
+  
+    <text x="40" y="162" font-size="17" font-weight="700" fill="#3A0304">Maroon — primary surface, drawn from the logo field</text>
+    <rect x="40" y="184" width="132" height="132" rx="10" fill="#2A0203" stroke="#E4DACB" />
+    <text x="40" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 950</text>
+    <text x="40" y="350" font-size="13" font-family="monospace" fill="#6B1418">#2A0203</text>
+    <text x="40" y="364" font-size="11" fill="#7A7266">Deepest shadow</text>
+    <rect x="188" y="184" width="132" height="132" rx="10" fill="#3A0304" stroke="#E4DACB" />
+    <text x="188" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 900</text>
+    <text x="188" y="350" font-size="13" font-family="monospace" fill="#6B1418">#3A0304</text>
+    <text x="188" y="364" font-size="11" fill="#7A7266">Logo field, dark plates</text>
+    <rect x="336" y="184" width="132" height="132" rx="10" fill="#4A0E0F" stroke="#E4DACB" />
+    <text x="336" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 800</text>
+    <text x="336" y="350" font-size="13" font-family="monospace" fill="#6B1418">#4A0E0F</text>
+    <text x="336" y="364" font-size="11" fill="#7A7266">Headings on light</text>
+    <rect x="484" y="184" width="132" height="132" rx="10" fill="#6B1418" stroke="#E4DACB" />
+    <text x="484" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 700</text>
+    <text x="484" y="350" font-size="13" font-family="monospace" fill="#6B1418">#6B1418</text>
+    <text x="484" y="364" font-size="11" fill="#7A7266">Primary action</text>
+    <rect x="632" y="184" width="132" height="132" rx="10" fill="#8A1D22" stroke="#E4DACB" />
+    <text x="632" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 600</text>
+    <text x="632" y="350" font-size="13" font-family="monospace" fill="#6B1418">#8A1D22</text>
+    <text x="632" y="364" font-size="11" fill="#7A7266">Hover</text>
+    <rect x="780" y="184" width="132" height="132" rx="10" fill="#A83A3F" stroke="#E4DACB" />
+    <text x="780" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 500</text>
+    <text x="780" y="350" font-size="13" font-family="monospace" fill="#6B1418">#A83A3F</text>
+    <text x="780" y="364" font-size="11" fill="#7A7266">Accents, charts</text>
+    <rect x="928" y="184" width="132" height="132" rx="10" fill="#F6E4E4" stroke="#E4DACB" />
+    <text x="928" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 100</text>
+    <text x="928" y="350" font-size="13" font-family="monospace" fill="#6B1418">#F6E4E4</text>
+    <text x="928" y="364" font-size="11" fill="#7A7266">Borders</text>
+    <rect x="1076" y="184" width="132" height="132" rx="10" fill="#FCF4F4" stroke="#E4DACB" />
+    <text x="1076" y="334" font-size="14" font-weight="600" fill="#1C1A17">Maroon 50</text>
+    <text x="1076" y="350" font-size="13" font-family="monospace" fill="#6B1418">#FCF4F4</text>
+    <text x="1076" y="364" font-size="11" fill="#7A7266">Tinted rows</text>
+    <text x="40" y="406" font-size="17" font-weight="700" fill="#3A0304">Gold — the mark itself; accent, never body text on white</text>
+    <rect x="40" y="428" width="132" height="132" rx="10" fill="#7A5A1E" stroke="#E4DACB" />
+    <text x="40" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 800</text>
+    <text x="40" y="594" font-size="13" font-family="monospace" fill="#6B1418">#7A5A1E</text>
+    <text x="40" y="608" font-size="11" fill="#7A7266">Gold text on light</text>
+    <rect x="188" y="428" width="132" height="132" rx="10" fill="#A87C2E" stroke="#E4DACB" />
+    <text x="188" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 700</text>
+    <text x="188" y="594" font-size="13" font-family="monospace" fill="#6B1418">#A87C2E</text>
+    <text x="188" y="608" font-size="11" fill="#7A7266">Icon strokes</text>
+    <rect x="336" y="428" width="132" height="132" rx="10" fill="#C09A47" stroke="#E4DACB" />
+    <text x="336" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 600</text>
+    <text x="336" y="594" font-size="13" font-family="monospace" fill="#6B1418">#C09A47</text>
+    <text x="336" y="608" font-size="11" fill="#7A7266">Dividers on maroon</text>
+    <rect x="484" y="428" width="132" height="132" rx="10" fill="#D8B058" stroke="#E4DACB" />
+    <text x="484" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 500</text>
+    <text x="484" y="594" font-size="13" font-family="monospace" fill="#6B1418">#D8B058</text>
+    <text x="484" y="608" font-size="11" fill="#7A7266">Secondary action</text>
+    <rect x="632" y="428" width="132" height="132" rx="10" fill="#E8C868" stroke="#E4DACB" />
+    <text x="632" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 400</text>
+    <text x="632" y="594" font-size="13" font-family="monospace" fill="#6B1418">#E8C868</text>
+    <text x="632" y="608" font-size="11" fill="#7A7266">Highlight, hover</text>
+    <rect x="780" y="428" width="132" height="132" rx="10" fill="#F7EBCF" stroke="#E4DACB" />
+    <text x="780" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 100</text>
+    <text x="780" y="594" font-size="13" font-family="monospace" fill="#6B1418">#F7EBCF</text>
+    <text x="780" y="608" font-size="11" fill="#7A7266">Badges</text>
+    <rect x="928" y="428" width="132" height="132" rx="10" fill="#FCF7EA" stroke="#E4DACB" />
+    <text x="928" y="578" font-size="14" font-weight="600" fill="#1C1A17">Gold 50</text>
+    <text x="928" y="594" font-size="13" font-family="monospace" fill="#6B1418">#FCF7EA</text>
+    <text x="928" y="608" font-size="11" fill="#7A7266">Callouts</text>
+    <text x="40" y="650" font-size="17" font-weight="700" fill="#3A0304">Neutrals and status</text>
+    <rect x="40" y="672" width="132" height="132" rx="10" fill="#1C1A17" stroke="#E4DACB" />
+    <text x="40" y="822" font-size="14" font-weight="600" fill="#1C1A17">Ink</text>
+    <text x="40" y="838" font-size="13" font-family="monospace" fill="#6B1418">#1C1A17</text>
+    <text x="40" y="852" font-size="11" fill="#7A7266">Body text</text>
+    <rect x="188" y="672" width="132" height="132" rx="10" fill="#FAF7F2" stroke="#E4DACB" />
+    <text x="188" y="822" font-size="14" font-weight="600" fill="#1C1A17">Surface</text>
+    <text x="188" y="838" font-size="13" font-family="monospace" fill="#6B1418">#FAF7F2</text>
+    <text x="188" y="852" font-size="11" fill="#7A7266">App background</text>
+    <rect x="336" y="672" width="132" height="132" rx="10" fill="#2F6B4F" stroke="#E4DACB" />
+    <text x="336" y="822" font-size="14" font-weight="600" fill="#1C1A17">Success</text>
+    <text x="336" y="838" font-size="13" font-family="monospace" fill="#6B1418">#2F6B4F</text>
+    <text x="336" y="852" font-size="11" fill="#7A7266">Confirmed</text>
+    <rect x="484" y="672" width="132" height="132" rx="10" fill="#8F5A0C" stroke="#E4DACB" />
+    <text x="484" y="822" font-size="14" font-weight="600" fill="#1C1A17">Caution</text>
+    <text x="484" y="838" font-size="13" font-family="monospace" fill="#6B1418">#8F5A0C</text>
+    <text x="484" y="852" font-size="11" fill="#7A7266">Trial, over capacity</text>
+    <rect x="632" y="672" width="132" height="132" rx="10" fill="#B02418" stroke="#E4DACB" />
+    <text x="632" y="822" font-size="14" font-weight="600" fill="#1C1A17">Danger</text>
+    <text x="632" y="838" font-size="13" font-family="monospace" fill="#6B1418">#B02418</text>
+    <text x="632" y="852" font-size="11" fill="#7A7266">Declined, suspended</text>
+    <rect x="780" y="672" width="132" height="132" rx="10" fill="#2C5F73" stroke="#E4DACB" />
+    <text x="780" y="822" font-size="14" font-weight="600" fill="#1C1A17">Info</text>
+    <text x="780" y="838" font-size="13" font-family="monospace" fill="#6B1418">#2C5F73</text>
+    <text x="780" y="852" font-size="11" fill="#7A7266">Neutral notices</text>
+</svg>

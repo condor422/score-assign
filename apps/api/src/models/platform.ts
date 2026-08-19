@@ -22,6 +22,13 @@ export interface TenantDoc {
   timezone: string;
   dbName: string;
   status: TenantStatus;
+  /**
+   * Status held before a platform admin suspended the workspace, so restoring a
+   * trialing tenant does not silently promote it to active.
+   */
+  statusBeforeSuspension: TenantStatus | null;
+  suspendedAt: Date | null;
+  suspensionReason: string | null;
   plan: PlanKey;
   limits: PlanLimits;
   trialEndsAt: Date | null;
@@ -51,6 +58,9 @@ const tenantSchema = new Schema<TenantDoc>(
     timezone: { type: String, default: 'America/Phoenix' },
     dbName: { type: String, required: true },
     status: { type: String, enum: tenantStatuses, default: 'trialing', index: true },
+    statusBeforeSuspension: { type: String, enum: tenantStatuses, default: null },
+    suspendedAt: { type: Date, default: null },
+    suspensionReason: { type: String, default: null },
     plan: { type: String, enum: planKeys, default: 'free' },
     limits: { type: planLimitsSchema, required: true },
     trialEndsAt: { type: Date, default: null },

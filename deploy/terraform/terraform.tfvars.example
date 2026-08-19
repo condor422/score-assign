@@ -1,0 +1,13 @@
+project_id  = "scoreassign"
+region      = "us-west1"
+root_domain = "scoreassign.com"
+
+# Set these to the images Cloud Build pushed (see the SHORT_SHA tag it prints).
+api_image = "us-west1-docker.pkg.dev/scoreassign/score-assign/api:REPLACE_ME"
+web_image = "us-west1-docker.pkg.dev/scoreassign/score-assign/web:REPLACE_ME"
+
+# Billing stays stubbed until a real provider is implemented.
+billing_provider = "stub"
+
+email_provider = "sendgrid"
+email_from     = "no-reply@scoreassign.com"

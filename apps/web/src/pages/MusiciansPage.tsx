@@ -2,13 +2,36 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '../lib/api';
 import { InstrumentRanker } from '../components/InstrumentRanker';
-import type { Instrument, Musician } from '../lib/types';
+import { HelpTip } from '../components/HelpTip';
+import {
+  MusicianAttributeFields,
+  type MusicianAttributes,
+} from '../components/MusicianAttributeFields';
+import { experienceLevelLabels, type ExperienceLevel, type Instrument, type Musician } from '../lib/types';
+
+interface MusicianForm extends MusicianAttributes {
+  name: string;
+  email: string;
+  phone: string;
+  ranked: string[];
+}
+
+const emptyForm: MusicianForm = {
+  name: '',
+  email: '',
+  phone: '',
+  ranked: [],
+  willingToDouble: null,
+  experienceLevel: null,
+  difficultyPreference: null,
+  maxAssignments: null,
+};
 
 export function MusiciansPage(): JSX.Element {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', ranked: [] as string[] });
+  const [form, setForm] = useState<MusicianForm>(emptyForm);
 
   const instruments = useQuery({
     queryKey: ['instruments'],
@@ -25,10 +48,14 @@ export function MusiciansPage(): JSX.Element {
           email: form.email,
           ...(form.phone ? { phone: form.phone } : {}),
           instruments: form.ranked.map((instrumentId, index) => ({ instrumentId, rank: index + 1 })),
+          willingToDouble: form.willingToDouble,
+          experienceLevel: form.experienceLevel,
+          difficultyPreference: form.difficultyPreference,
+          maxAssignments: form.maxAssignments,
         },
       }),
     onSuccess: () => {
-      setForm({ name: '', email: '', phone: '', ranked: [] });
+      setForm(emptyForm);
       setOpen(false);
       setError(null);
       void queryClient.invalidateQueries({ queryKey: ['musicians'] });
@@ -107,8 +134,16 @@ export function MusiciansPage(): JSX.Element {
               />
             </div>
           </div>
+          <MusicianAttributeFields
+            idPrefix="m"
+            value={form}
+            onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+          />
           <div>
-            <p className="label">Instruments, most preferred first</p>
+            <p className="label">
+              Instruments, most preferred first
+              <HelpTip topic="instrumentRanking" />
+            </p>
             <InstrumentRanker
               instruments={instruments.data ?? []}
               value={form.ranked}
@@ -128,7 +163,7 @@ export function MusiciansPage(): JSX.Element {
       <div className="card">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase text-slate-500">
+            <thead className="table-head">
               <tr>
                 <th className="py-2">Name</th>
                 <th className="py-2">Contact</th>
@@ -154,7 +189,11 @@ export function MusiciansPage(): JSX.Element {
                   <td className="py-2">
                     {musician.willingToDouble === null ? '—' : musician.willingToDouble ? 'Yes' : 'No'}
                   </td>
-                  <td className="py-2">{musician.experienceLevel ?? '—'}</td>
+                  <td className="py-2">
+                    {musician.experienceLevel
+                      ? experienceLevelLabels[musician.experienceLevel as ExperienceLevel]
+                      : '—'}
+                  </td>
                 </tr>
               ))}
               {musicians.data?.length === 0 ? (
