@@ -12,3 +12,10 @@ coverage/
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Terraform working state; only the configuration is tracked
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+.terraform.lock.hcl

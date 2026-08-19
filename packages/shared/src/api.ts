@@ -98,6 +98,36 @@ export const musicianSchema = z.object({
   active: z.boolean().default(true),
 });
 
+export const instrumentSchema = z.object({
+  name: z.string().min(1).max(80),
+});
+
+export const instrumentUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+    /** Deactivated instruments disappear from pickers but keep their history. */
+    active: z.boolean().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.active !== undefined, {
+    message: 'provide a name or an active flag',
+  });
+
+export const instrumentReorderSchema = z.object({
+  /** Full list of instrument ids in their new display order. */
+  instrumentIds: z.array(z.string().min(1)).min(1),
+});
+
+export const organizationSchema = z.object({
+  name: z.string().min(2).max(120),
+  contactEmail: emailSchema.nullable().optional(),
+  timezone: z.string().min(1).max(64).optional(),
+});
+
+export const tenantStatusActionSchema = z.object({
+  action: z.enum(['suspend', 'restore']),
+  reason: z.string().max(500).optional(),
+});
+
 export const runAssignmentSchema = z.object({
   weights: z
     .object({

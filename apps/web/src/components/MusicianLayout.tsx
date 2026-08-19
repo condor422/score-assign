@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useMusicianSession } from '../auth/MusicianSession';
+import { BrandMark } from './BrandMark';
 import type { MusicianProfile } from '../lib/types';
 
 const navItems = [
@@ -23,14 +24,19 @@ export function MusicianLayout(): JSX.Element {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-surface">
+      <header className="border-b border-maroon-100 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold">{profile.data?.tenant.name ?? 'ScoreAssign'}</p>
-            <p className="text-xs text-slate-500">
-              {profile.data ? profile.data.musician.name : 'Musician portal'}
-            </p>
+          <div className="flex items-center gap-3">
+            <BrandMark />
+            <div>
+              <p className="text-sm font-semibold text-maroon-900">
+                {profile.data?.tenant.name ?? 'ScoreAssign'}
+              </p>
+              <p className="text-xs text-slate-500">
+                {profile.data ? profile.data.musician.name : 'Musician portal'}
+              </p>
+            </div>
           </div>
           {signedIn ? (
             <button type="button" className="btn-secondary" onClick={signOut}>
@@ -45,12 +51,7 @@ export function MusicianLayout(): JSX.Element {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  clsx(
-                    'rounded-md px-3 py-1.5',
-                    isActive || location.pathname === item.to
-                      ? 'bg-ink text-white'
-                      : 'text-slate-600 hover:bg-slate-100',
-                  )
+                  clsx(isActive || location.pathname === item.to ? 'tab-active' : 'tab')
                 }
               >
                 {item.label}

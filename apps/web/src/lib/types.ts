@@ -11,7 +11,11 @@ export type Capability =
   | 'form.write'
   | 'form.readResponses'
   | 'billing.manage'
-  | 'team.manage';
+  | 'team.manage'
+  | 'settings.manage';
+
+/** Mirrors the API sentinel for an uncapped limit. */
+export const UNLIMITED = 1_000_000;
 
 export type PlanKey = 'free' | 'monthly' | 'annual';
 export type PaidPlanKey = 'monthly' | 'annual';
@@ -23,6 +27,27 @@ export const roleLabels: Record<TenantRole, string> = {
   director: 'Director',
   section_leader: 'Section leader',
   viewer: 'Viewer',
+};
+
+export type ExperienceLevel =
+  | 'intermediate'
+  | 'advanced'
+  | 'collegiate'
+  | 'graduate_professional';
+
+export type Difficulty = 'easier' | 'moderate' | 'challenging';
+
+export const experienceLevelLabels: Record<ExperienceLevel, string> = {
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+  collegiate: 'Collegiate',
+  graduate_professional: 'Graduate / professional',
+};
+
+export const difficultyLabels: Record<Difficulty, string> = {
+  easier: 'Easier',
+  moderate: 'Moderate',
+  challenging: 'Challenging',
 };
 
 export interface SessionResponse {
@@ -51,7 +76,21 @@ export interface Instrument {
   id: string;
   name: string;
   key?: string;
+  order?: number;
   active?: boolean;
+}
+
+export interface Organization {
+  id: string;
+  slug: string;
+  name: string;
+  contactEmail: string;
+  timezone: string;
+  plan: PlanKey;
+  status: string;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  limits: { maxParts: number; maxMusicians: number; maxSongs: number; maxSeats: number };
 }
 
 export interface Season {
@@ -261,6 +300,8 @@ export interface PlatformTenant {
   name: string;
   contactEmail: string;
   status: string;
+  suspendedAt: string | null;
+  suspensionReason: string | null;
   plan: PlanKey;
   interval: BillingInterval;
   seats: number;

@@ -34,7 +34,6 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     const { Tenant } = platformModels(getBaseConnection());
     const tenant = await Tenant.findById(claims.tenantId);
     if (!tenant) throw unauthorized('Tenant no longer exists');
-    if (tenant.status === 'suspended') throw forbidden('This workspace is suspended');
 
     req.tenant = tenant;
     req.db = getTenantModels(tenant.dbName);
@@ -45,6 +44,13 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 }
 
 /**
+ * Capabilities a suspended workspace keeps. Suspension freezes a tenant rather
+ * than locking it out: staff can still read their data and export what they
+ * need, but nothing may change until a platform admin restores them.
+ */
+const suspendedCapabilities: readonly Capability[] = ['roster.read', 'roster.readContact'];
+
+/**
  * The only access check in the app. Roles map to capabilities in one shared
  * table, so a new role never means auditing route guards.
  */
@@ -53,6 +59,9 @@ export function requireCapability(capability: Capability) {
     if (!req.auth) return next(unauthorized());
     if (!roleHasCapability(req.auth.role, capability)) {
       return next(forbidden(`Your role cannot ${capability.replace('.', ' ')}`));
+    }
+    if (req.tenant?.status === 'suspended' && !suspendedCapabilities.includes(capability)) {
+      return next(forbidden('This workspace is suspended and is read-only'));
     }
     next();
   };
@@ -70,6 +79,13 @@ export function can(req: Request, capability: Capability): boolean {
 export function sectionScope(req: Request): string[] | null {
   if (req.auth?.role !== 'section_leader') return null;
   return req.auth.sectionInstrumentIds ?? [];
+}
+
+/** Guards writes that are not already behind a capability, such as musician replies. */
+export function assertNotSuspended(req: Request): void {
+  if (req.tenant?.status === 'suspended') {
+    throw forbidden('This workspace is suspended and is read-only');
+  }
 }
 
 export function requirePlatformAdmin(req: Request, _res: Response, next: NextFunction): void {

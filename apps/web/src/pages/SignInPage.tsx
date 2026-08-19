@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../auth/SessionContext';
 import { ApiError } from '../lib/api';
+import { BrandMark } from '../components/BrandMark';
 
 export function SignInPage(): JSX.Element {
   const { signIn } = useSession();
@@ -26,9 +27,12 @@ export function SignInPage(): JSX.Element {
   return (
     <div className="grid min-h-screen place-items-center px-4">
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
-        <div>
-          <h1 className="text-lg font-semibold">Sign in to ScoreAssign</h1>
-          <p className="hint">Part assignment for flute choirs and ensembles.</p>
+        <div className="space-y-3">
+          <BrandMark variant="lockup" />
+          <div>
+            <h1 className="text-lg font-semibold">Sign in to ScoreAssign</h1>
+            <p className="hint">Part assignment for flute choirs and ensembles.</p>
+          </div>
         </div>
         <div>
           <label className="label" htmlFor="email">
@@ -58,7 +62,7 @@ export function SignInPage(): JSX.Element {
             required
           />
         </div>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
         <button className="btn-primary w-full" type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
@@ -67,6 +71,13 @@ export function SignInPage(): JSX.Element {
           <Link className="underline" to="/sign-up">
             Create a workspace
           </Link>
+        </p>
+        <p className="hint">
+          Playing in an ensemble rather than running one?{' '}
+          <Link className="underline" to="/musician/sign-in">
+            Musician sign-in
+          </Link>{' '}
+          uses an emailed link instead of a password.
         </p>
       </form>
     </div>
